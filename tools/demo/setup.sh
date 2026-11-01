@@ -7,7 +7,7 @@
 #
 # Usage:
 #   tools/demo/setup.sh start     # install (first run only), seed, boot, print URL
-#   tools/demo/setup.sh stop      # stop the demo server
+#   tools/demo/setup.sh stop      # stop the demo server and the mock model route
 #   tools/demo/setup.sh reset     # stop + wipe the demo DSH_HOME and vault
 #   tools/demo/setup.sh url       # print the authenticated URL of a running demo
 #
@@ -38,6 +38,10 @@ VAULT="$DEMO_DIR/vault"
 WORKSPACE="$DEMO_DIR/workspace"
 LOG="$DEMO_DIR/dsh-web.log"
 PID_FILE="$DEMO_DIR/dsh-web.pid"
+# Local mock model route (see mock-llm.mjs): the demo must never use real credentials.
+MOCK_PORT="${MOCK_PORT:-5613}"
+MOCK_LOG="$DEMO_DIR/mock-llm.log"
+MOCK_PID_FILE="$DEMO_DIR/mock-llm.pid"
 
 say() { printf '%s\n' "$*" >&2; }
 
@@ -108,30 +112,31 @@ seed() {
 - id: workspace-controller
   config:
     documentsDirectory: $DEMO_DIR/documents
+# 3) A local OpenAI-compatible mock route, so the GIF can show a real chat reply
+#    without touching ~/.dsh credentials or calling a paid API. The key is a
+#    dummy value that mock-llm.mjs never checks.
+- id: llm-pi-ai
+  config:
+    providers:
+      demo-local:
+        api: openai-completions
+        baseURL: http://127.0.0.1:$MOCK_PORT/v1
+        apiKeyEnv: DEMO_LLM_KEY
+        models:
+          - id: demo-chat
+            name: Demo Chat
+            contextWindow: 65536
+            maxTokens: 2048
+- id: agent-default-model
+  config:
+    provider: demo-local
+    model: demo-chat
 EOF
-  cat > "$DSH_HOME/storages/workspace.json" <<EOF
-{
-  "unit": { "name": "workspace", "version": 2 },
-  "global": {
-    "initialized": true,
-    "workspaceIds": ["demo-workspace"],
-    "archivedSessionIds": [],
-    "pinnedSessionIds": [],
-    "defaultWorkspaceId": "demo-workspace"
-  },
-  "tables": {
-    "workspaces": {
-      "demo-workspace": {
-        "path": "$WORKSPACE",
-        "title": "demo-project",
-        "sessionIds": [],
-        "createdAt": "2026-10-31T00:00:00.000Z",
-        "updatedAt": "2026-10-31T00:00:00.000Z"
-      }
-    }
-  }
-}
-EOF
+  # NOTE: do NOT hand-seed storages/workspace.json. A hand-written workspace row
+  # is not registered in the host's workspace service, so starting a session
+  # fails with "session/workspace-attach-failed". The app creates its own
+  # workspace on first run; documentsDirectory is pinned above to the demo root.
+  : # workspace state comes from the host
 }
 
 install_plugin() {
@@ -152,12 +157,42 @@ install_plugin() {
   fi
 }
 
+start_mock() {
+  stop_mock
+  say "== starting the local mock model route on 127.0.0.1:$MOCK_PORT (log: $MOCK_LOG) =="
+  node "$REPO/tools/demo/mock-llm.mjs" --port "$MOCK_PORT" > "$MOCK_LOG" 2>&1 &
+  echo $! > "$MOCK_PID_FILE"
+  for _ in $(seq 1 40); do
+    if curl -sf "http://127.0.0.1:$MOCK_PORT/v1/models" >/dev/null 2>&1; then return 0; fi
+    if ! kill -0 "$(cat "$MOCK_PID_FILE")" 2>/dev/null; then
+      say "!! mock model route exited early:"; tail -10 "$MOCK_LOG" >&2; exit 1
+    fi
+    sleep 0.25
+  done
+  say "!! mock model route did not answer on port $MOCK_PORT"; exit 1
+}
+
+stop_mock() {
+  if [ -f "$MOCK_PID_FILE" ]; then
+    local pid
+    pid="$(cat "$MOCK_PID_FILE")"
+    if kill -0 "$pid" 2>/dev/null; then kill "$pid" 2>/dev/null || true; fi
+    rm -f "$MOCK_PID_FILE"
+  fi
+  local port_pid
+  port_pid="$(lsof -ti "tcp:$MOCK_PORT" 2>/dev/null || true)"
+  if [ -n "$port_pid" ]; then
+    # shellcheck disable=SC2086
+    kill $port_pid 2>/dev/null || true
+  fi
+}
+
 boot() {
   stop_server
   local bin
   bin="$(dsh_bin)"
   say "== booting dsh web on port $PORT (log: $LOG) =="
-  DSH_HOME="$DSH_HOME" nohup node "$bin" --profile "$PROFILE" --port "$PORT" --no-open \
+  DSH_HOME="$DSH_HOME" DEMO_LLM_KEY=dummy nohup node "$bin" --profile "$PROFILE" --port "$PORT" --no-open \
     > "$LOG" 2>&1 &
   echo $! > "$PID_FILE"
   for _ in $(seq 1 240); do
@@ -184,15 +219,18 @@ case "${1:-start}" in
     ensure_runtime
     seed
     install_plugin
+    start_mock
     boot
     ;;
   stop)
     stop_server
+    stop_mock
     say "demo server stopped"
     ;;
   reset)
     stop_server
-    rm -rf "$DSH_HOME" "$VAULT" "$WORKSPACE" "$LOG" "$PID_FILE"
+    stop_mock
+    rm -rf "$DSH_HOME" "$VAULT" "$WORKSPACE" "$LOG" "$PID_FILE" "$MOCK_LOG"
     say "removed $DSH_HOME, $VAULT, $LOG"
     ;;
   url)

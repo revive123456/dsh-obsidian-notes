@@ -121,6 +121,13 @@
     askSend: "发送",
     askCancel: "Esc 取消",
     askCap: "针对选中内容提问…（{n} 字符）",
+    askChars: "{n} 字符",
+    askCited: "已引用选中片段（{n} 字符）",
+    promptLine: "第 {a} 行",
+    promptLines: "第 {a}–{b} 行",
+    promptDefaultQ: "请解释这段内容",
+    promptLong: "（片段较长，共 {n} 字符，请阅读 @文件 第 {a}–{b} 行）",
+    promptQuestion: "【问题】",
     rename: "重命名",
     delete: "删除",
     deleteConfirm: "确认删除该笔记？此操作不可恢复。",
@@ -251,6 +258,13 @@
     askSend: "Send",
     askCancel: "Esc to cancel",
     askCap: "Ask about the selection…（{n} chars）",
+    askChars: "{n} chars",
+    askCited: "Cited the selected passage ({n} chars)",
+    promptLine: "Line {a}",
+    promptLines: "Lines {a}–{b}",
+    promptDefaultQ: "Please explain this passage",
+    promptLong: "(long selection: {n} chars; read @file lines {a}–{b})",
+    promptQuestion: "Question:",
     rename: "Rename",
     delete: "Delete",
     deleteConfirm: "Delete this note? This cannot be undone.",
@@ -543,19 +557,19 @@
     return line;
   }
 
-  /** 生成「@路径 + 行数 + > 选中内容 + 【问题】」的注入 prompt（无多余空行） */
-  function buildPrompt(absPath, content, span, question) {
+  /** 生成「@路径 + 行数 + > 选中内容 + 问题标签」的注入 prompt（无多余空行）。 */
+  function buildPrompt(t, absPath, content, span, question) {
     const lineA = offsetToLine(content, span.start);
     const lineB = offsetToLine(content, span.end - 1);
-    const range = lineA === lineB ? `第 ${lineA} 行` : `第 ${lineA}–${lineB} 行`;
-    const q = (question || "").trim() || "请解释这段内容";
+    const range = lineA === lineB ? t("promptLine", { a: lineA }) : t("promptLines", { a: lineA, b: lineB });
+    const q = (question || "").trim() || t("promptDefaultQ");
     const lines = [`@${absPath}`, range];
     if (span.text.length <= SEL_CHAR_LIMIT) {
       for (const l of span.text.split("\n")) lines.push(`> ${l}`);
     } else {
-      lines.push(`> （片段较长，共 ${span.text.length} 字符，请阅读 @文件 第 ${lineA}–${lineB} 行）`);
+      lines.push(`> ${t("promptLong", { n: span.text.length, a: lineA, b: lineB })}`);
     }
-    lines.push(`【问题】${q}`);
+    lines.push(`${t("promptQuestion")} ${q}`);
     return lines.join("\n");
   }
 
@@ -2662,9 +2676,9 @@
 
     const submitAsk = useCallback((question) => {
       if (!ask) return;
-      const prompt = buildPrompt(ask.basePath, ask.content, ask.span, question);
+      const prompt = buildPrompt(t, ask.basePath, ask.content, ask.span, question);
       if (injectPrompt(prompt)) {
-        showToast(`${t("cited")}：已引用选中片段（${ask.span.text.length} 字符）`);
+        showToast(t("askCited", { n: ask.span.text.length }));
       } else {
         try {
           if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
@@ -2967,8 +2981,8 @@
           )
           : createElement("div", { className: "dsh-obs-askbar" },
             createElement("button", { onMouseDown: (e) => e.preventDefault(), onClick: () => { setAskOpen(true); setDraftQ(""); } }, `💬 ${t("ask")}`),
-            createElement("button", { onMouseDown: (e) => e.preventDefault(), onClick: () => submitAsk("请解释这段内容") }, `⚡ ${t("explain")}`),
-            createElement("span", { className: "dsh-obs-asklen" }, `${ask.span.text.length} 字符`),
+            createElement("button", { onMouseDown: (e) => e.preventDefault(), onClick: () => submitAsk(t("promptDefaultQ")) }, `⚡ ${t("explain")}`),
+            createElement("span", { className: "dsh-obs-asklen" }, t("askChars", { n: ask.span.text.length })),
           ),
       ),
     );

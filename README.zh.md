@@ -2,7 +2,7 @@
 
 **DeepSeek Harness Web 的本地 Obsidian 风格笔记面板。** 指向一个 Markdown 文件夹，就能在对话旁边浏览、编辑、搜索、引用笔记 —— 不用装 Obsidian、不用导入，笔记也不会离开这台机器。
 
-![笔记面板演示：打开目录树、浏览 callout、编辑保存、选中一段文字提问](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/hero.gif)
+![笔记面板演示：打开目录树、阅读 callout 笔记、选中一段文字提问 —— 组合好的 prompt 进入 DSH 输入框、发送后回答出现在对话里](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/hero.gif?v=2)
 
 [![CI](https://github.com/revive123456/dsh-obsidian-notes/actions/workflows/ci.yml/badge.svg)](https://github.com/revive123456/dsh-obsidian-notes/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/revive123456/dsh-obsidian-notes/blob/main/LICENSE)

@@ -47,6 +47,7 @@ class Cdp {
     this.nextId = 1;
     this.pending = new Map();
     this.waiters = new Map();
+    this.events = [];
     ws.addEventListener("message", (event) => {
       const msg = JSON.parse(typeof event.data === "string" ? event.data : String(event.data));
       if (msg.id !== undefined) {
@@ -63,6 +64,7 @@ class Cdp {
         this.waiters.delete(msg.method);
         w.resolve(msg.params);
       }
+      if (this.events.length < 500) this.events.push(msg);
     });
   }
 
@@ -106,7 +108,14 @@ class Cdp {
 // ── Chrome lifecycle ────────────────────────────────────────────────────────
 async function launchChrome(url) {
   if (!existsSync(CHROME)) throw new Error(`Chrome not found at ${CHROME} (set CHROME=…)`);
-  const profile = join(DEMO_DIR, "chrome-profile");
+  // A leftover headless Chrome holding the shared profile makes a new launch
+  // silently attach to the stale page. Kill any demo-profile Chrome first and
+  // use a per-run profile directory.
+  try {
+    const { spawnSync } = await import("node:child_process");
+    spawnSync("pkill", ["-f", `user-data-dir=${join(DEMO_DIR, "chrome-profile")}`], { stdio: "ignore" });
+  } catch { /* pkill missing is fine */ }
+  const profile = join(DEMO_DIR, `chrome-profile-${process.pid}`);
   rmSync(profile, { recursive: true, force: true });
   mkdirSync(profile, { recursive: true });
   const args = [
@@ -505,10 +514,17 @@ async function shots(page) {
 
 /** Capture frames while driving the hero GIF workflow. */
 async function record(page) {
+  // Settle the shell and dismiss first-run modals before the frame loop starts,
+  // otherwise the opening seconds are an unclickable onboarding mask.
+  await prepare(page);
+  // Open the session view before frame capture: the ask handoff targets the
+  // session-scoped composer, which only exists once a session is really open.
+  await primeSession(page);
   rmSync(FRAMES_DIR, { recursive: true, force: true });
   mkdirSync(FRAMES_DIR, { recursive: true });
   const frames = [];
   const started0 = Date.now();
+  const mark = (label) => console.log(`  [${((Date.now() - started0) / 1000).toFixed(1)}s] ${label}`);
   let running = true;
   const targetFrameMs = Number(process.env.FRAME_MS || 90);
 
@@ -528,67 +544,27 @@ async function record(page) {
 
   await sleep(400);
 
-  // 1. notes panel closed → open the notes tree
+  // 1. the primed session view is already open (see primeSession above)
+  mark("session view ready");
+  await sleep(700);
+
+  // 2. open the notes panel and the callout note
   await openNotes(page);
+  await sleep(600);
+  await expandFolder(page, "Notes", "Callout gallery");
+  await sleep(400);
+  await openNote(page, "Callout gallery");
+  mark("note open");
+  await sleep(1000);
+  await page.scroll(SEL.dockBody, 330);
   await sleep(900);
 
-  // 2. expand two folders
-  await expandFolder(page, "Notes", "Callout gallery");
-  await sleep(500);
-  await expandFolder(page, "Projects", "Roadmap");
-  await sleep(700);
-
-  // 3. open the callout gallery note
-  await openNote(page, "Callout gallery");
-  await sleep(1600);
-
-  // 4. scroll through the rendered callouts
-  await page.scroll(SEL.dockBody, 330);
-  await sleep(1200);
-
-  // 4b. hop to the syntax note to show real tables and fenced code
-  await openNote(page, "Markdown syntax");
-  await page.scroll(SEL.dockBody, 60);
-  await sleep(1300);
-
-  // 4c. back to the callout note for the editing step
-  await openNote(page, "Callout gallery");
-  await sleep(600);
-
-  // 5. edit the note: line-numbered source editor, type a new callout
-  await page.scroll(SEL.dockBody, 0);
-  await sleep(400);
-  await page.click(".dsh-obs-dock-head button", "Edit");
-  await page.waitFor(`!!document.querySelector(${JSON.stringify(SEL.editor)})`, { label: "editor" });
-  await sleep(600);
-  await page.evaluate(`(() => {
-    const ta = document.querySelector(${JSON.stringify(SEL.editor)});
-    if (!ta) return false;
-    ta.focus();
-    ta.selectionStart = ta.selectionEnd = ta.value.length;
-    return true;
-  })()`);
-  await sleep(250);
-  await page.type("\n\n> [!tip] Saved from the demo GIF", { delay: 32 });
-  await sleep(650);
-
-  // 6. save → preview, then scroll to the new callout at the end
-  await page.click(".dsh-obs-dock-head button", "Save");
-  await sleep(1200);
-  await page.scroll(SEL.dockBody, 99999);
-  await sleep(400);
-  await page.scroll(SEL.dockBody, 99999, { smooth: false });
-  await sleep(1400);
-
-  // 7. select a line → floating Ask / Explain bar
-  await page.scroll(SEL.dockBody, 360);
-  await sleep(700);
+  // 3. select a line → floating Ask bar → type the question
   await page.selectText(SEL.src, "Why are there line numbers on every preview");
   await page.waitFor(`!!document.querySelector(${JSON.stringify(SEL.askbar)})`, { timeout: 5000, label: "ask bar" });
-  await sleep(1000);
-
-  // 8. open the Ask popup and type the question
+  await sleep(900);
   await page.click(`${SEL.askbar} button`, "Ask");
+  await page.waitFor(`!!document.querySelector(".dsh-obs-askta")`, { label: "ask popup" });
   await sleep(500);
   await page.evaluate(`(() => {
     const ta = document.querySelector(".dsh-obs-askta");
@@ -597,14 +573,186 @@ async function record(page) {
     ta.selectionStart = ta.selectionEnd = ta.value.length;
     return true;
   })()`);
-  await page.type("Where does the line number come from?", { delay: 34 });
-  await sleep(1400);
+  await page.type("Where does the line number come from?", { delay: 32 });
+  await sleep(900);
+
+  // 4. send from the Ask popup → the composed prompt lands in the DSH composer
+  await page.click(".dsh-obs-asksend");
+  mark("prompt injected");
+  await sleep(800);
+
+  // 5. close the notes dock so the composer and the chat are fully visible
+  await page.click('.dsh-obs-dock-head button[title="Close"]');
+  await sleep(3200);
+
+  // 6. send the composed prompt exactly like a user would (Enter in the composer)
+  await page.evaluate(`(() => { const el = document.querySelector('[data-composer-input]'); if (el) el.focus(); return true; })()`);
+  await sleep(300);
+  await page.press("Enter");
+  mark("sent");
+  await sleep(900);
+
+  // 7. let the reply stream in, then hold on the finished exchange
+  await page.waitFor(`(document.body.innerText || "").includes("Every source line")`, { timeout: 20000, label: "mock reply" }).catch(() => false);
+  await page.waitFor(`(document.body.innerText || "").includes("handed to the chat")`, { timeout: 15000, label: "reply streamed" }).catch(() => false);
+  mark("reply streamed");
+  await sleep(3000);
 
   running = false;
   await loop;
   const manifest = { width: VW, height: VH, capturedAt: new Date().toISOString(), frames };
   writeFileSync(join(FRAMES_DIR, "manifest.json"), JSON.stringify(manifest));
   console.log(`recorded ${frames.length} frames in ${((Date.now() - started0) / 1000).toFixed(1)}s → ${FRAMES_DIR}`);
+}
+
+/** Start a session (the app's default workspace) so the composer becomes usable. */
+async function startSession(page) {
+  await page.click('button[aria-label="New session"]');
+  await page.waitFor(`(() => {
+    const el = document.querySelector('[data-composer-input]');
+    return !!el && el.isContentEditable && el.getAttribute("data-phase") !== "inert";
+  })()`, { timeout: 20000, label: "composer ready" });
+  await sleep(900);
+}
+
+/**
+ * Start a session and send one short message first: the plugin hands a selected
+ * passage to the session-scoped composer slot, which exists once the session
+ * view is actually open (the start page alone is not enough).
+ */
+async function primeSession(page) {
+  await startSession(page);
+  await page.evaluate(`(() => { const el = document.querySelector('[data-composer-input]'); if (el) el.focus(); return true; })()`);
+  await sleep(300);
+  await page.type("Help me read a note", { delay: 22 });
+  await sleep(300);
+  await page.press("Enter");
+  await page.waitFor(`(document.body.innerText || "").includes("open the note you are reading")`, { timeout: 20000, label: "priming reply" }).catch(() => false);
+  await sleep(800);
+}
+
+/** Select a passage in the preview, ask the question, send it through the composer. */
+async function askAndSend(page, question) {
+  await page.selectText(SEL.src, "Why are there line numbers on every preview");
+  await page.waitFor(`!!document.querySelector(${JSON.stringify(SEL.askbar)})`, { timeout: 5000, label: "ask bar" });
+  await page.click(`${SEL.askbar} button`, "Ask");
+  await page.waitFor(`!!document.querySelector(".dsh-obs-askta")`, { label: "ask popup" });
+  await page.evaluate(`(() => {
+    const ta = document.querySelector(".dsh-obs-askta");
+    ta.focus();
+    ta.selectionStart = ta.selectionEnd = ta.value.length;
+    return true;
+  })()`);
+  await page.type(question, { delay: 30 });
+  await sleep(400);
+  await page.click(".dsh-obs-asksend");
+  await sleep(900);
+  const composed = await page.evaluate(`(() => (document.querySelector('[data-composer-input]')||{}).innerText || "")()`);
+  // The dock overlaps the composer's right half; close it so the injected prompt
+  // and the chat exchange are fully visible in the GIF.
+  await page.click('.dsh-obs-dock-head button[title="Close"]');
+  await sleep(900);
+  // The dock can overlap the composer's send button, so send from the keyboard:
+  // focus the composer and press Enter, exactly like a user would.
+  await page.evaluate(`(() => { const el = document.querySelector('[data-composer-input]'); if (el) el.focus(); return true; })()`);
+  await sleep(150);
+  await page.press("Enter");
+  return composed;
+}
+
+/** End-to-end smoke test for the chat handoff (no recording; writes /tmp shot + JSON). */
+async function chatTest(page) {
+  await prepare(page);
+  await startSession(page);
+  await openNotes(page);
+  await expandFolder(page, "Notes", "Callout gallery");
+  await openNote(page, "Callout gallery");
+  await sleep(600);
+  await page.scroll(SEL.dockBody, 360);
+  await sleep(500);
+  const composed = await askAndSend(page, "Where does the line number come from?");
+  const gotReply = await page.waitFor(`(document.body.innerText || "").includes("Every source line")`, { timeout: 20000, label: "mock reply" }).catch(() => false);
+  await sleep(1200);
+  const transcript = await page.evaluate(`(() => (document.body.innerText || "").slice(-1200))()`);
+  const questionVisible = await page.evaluate(`(document.body.innerText || "").includes("Where does the line number come from?")`);
+  const consoleEvents = page.cdp.events
+    .filter((e) => e.method === "Runtime.exceptionThrown" || (e.method === "Runtime.consoleAPICalled" && ["error", "warning"].includes(e.params?.type)))
+    .slice(-8)
+    .map((e) => (e.params?.exceptionDetails?.exception?.description || e.params?.args?.map((a) => a.value ?? a.description ?? "").join(" ") || "").slice(0, 200));
+  const shot = join(DEMO_DIR, "chat-test.png");
+  await page.screenshotFile(shot, { format: "png", scale: 1 });
+  console.log(JSON.stringify({ composed: composed.slice(0, 500), gotReply, questionVisible, consoleEvents, transcriptTail: transcript.slice(-700), shot }, null, 2));
+}
+
+/** Dump composer / send-button DOM candidates (debug helper for the chat handoff). */
+async function domDump(page) {
+  await prepare(page);
+  await sleep(1200);
+  if ((process.env.DOM_STEPS || "").includes("newsession")) {
+    await page.click('button[aria-label="New session"]');
+    await sleep(2500);
+    await page.dismissModals({ quietMs: 800, maxMs: 5000 });
+    await sleep(1200);
+  }
+  if ((process.env.DOM_STEPS || "").includes("choosews")) {
+    await page.click('[data-composer-input]');
+    await sleep(900);
+  }
+  if ((process.env.DOM_STEPS || "").includes("pickws")) {
+    await page.click('[class*="_itemWrap_"]', "demo-project");
+    await sleep(1800);
+  }
+  if ((process.env.DOM_STEPS || "").includes("expandws")) {
+    await page.click(".dsh-obs-ws-row", "demo-project");
+    await sleep(900);
+  }
+  if ((process.env.DOM_STEPS || "").includes("sendtest")) {
+    await page.evaluate(`(() => {
+      const box = document.querySelector('[data-composer-input]') || document.querySelector('[contenteditable=true]');
+      if (box) { box.focus(); }
+      return !!box;
+    })()`);
+    await page.type("Quick smoke test of the demo route", { delay: 20 });
+    await sleep(400);
+    await page.click('button[aria-label="Send message"]');
+    await sleep(4000);
+  }
+  const info = await page.evaluate(`(() => {
+    const pick = (el) => ({
+      tag: el.tagName.toLowerCase(),
+      cls: (el.className || "").toString().slice(0, 160),
+      role: el.getAttribute("role"),
+      aria: el.getAttribute("aria-label"),
+      title: el.getAttribute("title"),
+      data: [...el.attributes].filter((a) => a.name.startsWith("data-")).map((a) => a.name),
+      text: (el.innerText || "").slice(0, 80).replace(/\\n/g, " | "),
+      ce: el.isContentEditable,
+      rect: (() => { const r = el.getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }; })(),
+      parent: el.parentElement ? (el.parentElement.className || "").toString().slice(0, 80) : null,
+    });
+    const ce = [...document.querySelectorAll("[contenteditable=true]")].map(pick);
+    const tas = [...document.querySelectorAll("textarea")].map(pick);
+    const buttons = [...document.querySelectorAll("button")].map(pick).filter((b) =>
+      /send|submit|ask|new session/i.test([b.aria, b.title, b.text].join(" ")) || b.data.length > 1).slice(0, 20);
+    const composer = document.querySelector("[data-composer-input], [data-input-scroll]");
+    const allButtons = [...document.querySelectorAll("button")].map(pick).slice(0, 40);
+    const menuItems = [...document.querySelectorAll('[role="menuitem"], [role="option"], [class*="_menu"] [class*="_item"]')].map(pick).slice(0, 25);
+    const composerHTML = composer ? composer.outerHTML.slice(0, 1500) : null;
+    const labels = [...document.querySelectorAll("[aria-label]")].map((el) => ({ aria: el.getAttribute("aria-label"), cls: (el.className || "").toString().slice(0, 60), text: (el.innerText || "").slice(0, 40) })).slice(0, 50);
+    const mentionsModel = /demo chat|demo-chat|select model|choose a model/i.test(document.body.innerText || "");
+    const sessionRows = [...document.querySelectorAll(".dsh-obs-session")].map(pick).slice(0, 10);
+    const wsRows = [...document.querySelectorAll(".dsh-obs-ws-row")].map(pick).slice(0, 10);
+    return { ce, tas, buttons, allButtons, menuItems, labels, mentionsModel, sessionRows, wsRows, composerHTML, composer: composer ? pick(composer) : null, bodyText: (document.body.innerText || "").slice(0, 1200), bodyTail2: (document.body.innerText || "").slice(-600) };
+  })()`);
+  const shot = join(DEMO_DIR, "dom.png");
+  await page.screenshotFile(shot, { format: "png", scale: 1 });
+  const consoleEvents = page.cdp.events
+    .filter((e) => e.method === "Runtime.exceptionThrown" || (e.method === "Runtime.consoleAPICalled" && ["error", "warning"].includes(e.params?.type)))
+    .slice(-12)
+    .map((e) => e.method === "Runtime.exceptionThrown"
+      ? { kind: "exception", text: (e.params?.exceptionDetails?.exception?.description || e.params?.exceptionDetails?.text || "").slice(0, 300) }
+      : { kind: e.params.type, text: (e.params.args || []).map((a) => a.value ?? a.description ?? "").join(" ").slice(0, 300) });
+  console.log(JSON.stringify({ ...info, shot, consoleEvents }, null, 2));
 }
 
 /** Dump the page state to debug selector/loader problems (writes DEMO_DIR/probe*.png). */
@@ -697,6 +845,8 @@ async function main() {
     if (mode === "shots") await shots(page);
     else if (mode === "record") await record(page);
     else if (mode === "probe") await probe(page);
+    else if (mode === "dom") await domDump(page);
+    else if (mode === "chattest") await chatTest(page);
     else if (mode === "selftest") await selftest(page);
     else throw new Error(`unknown mode: ${mode}`);
     console.log("done");
