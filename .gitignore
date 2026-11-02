@@ -17,3 +17,6 @@ prototype/
 Thumbs.db
 .vscode/
 .idea/
+
+# 演示/取证临时产物
+tools/demo/out/
