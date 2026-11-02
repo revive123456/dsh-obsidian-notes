@@ -684,6 +684,49 @@ async function chatTest(page) {
   console.log(JSON.stringify({ composed: composed.slice(0, 500), gotReply, questionVisible, consoleEvents, transcriptTail: transcript.slice(-700), shot }, null, 2));
 }
 
+/**
+ * Dump the Workspace sidebar's rendered session order per group.
+ *
+ * Regression evidence for "the panel must order sessions like DSH's own
+ * sidebar (last updated first)": the workspace account order is the attach
+ * order, so a row must be sorted by its own `updatedAt`, not by `sessionIds`.
+ */
+async function sessionsDump(page) {
+  await prepare(page);
+  // The session list only renders in the wide (expanded) right sidebar.
+  if ((await page.evaluate(`document.querySelectorAll('.dsh-obs-session').length`)) === 0) {
+    await page.evaluate(`(() => {
+      const btn = [...document.querySelectorAll('button')].find((b) =>
+        /expand|sidebar/i.test([b.getAttribute('aria-label'), b.getAttribute('title'), b.innerText].join(' ')));
+      if (btn) btn.click();
+      return !!btn;
+    })()`);
+    await sleep(1500);
+  }
+  await sleep(600);
+  const info = await page.evaluate(`(() => {
+    const groups = [];
+    for (const row of document.querySelectorAll('.dsh-obs-ws-row')) {
+      const title = (row.querySelector('.dsh-obs-ws-title')?.textContent || '').trim();
+      const box = row.nextElementSibling;
+      const rows = box ? [...box.querySelectorAll('.dsh-obs-session')].map((el) => ({
+        id: el.getAttribute('data-session-id'),
+        title: (el.querySelector('.dsh-obs-session-title')?.textContent || '').trim(),
+        time: (el.querySelector('.dsh-obs-time')?.textContent || '').trim(),
+      })) : [];
+      groups.push({ group: title, rows });
+    }
+    return { groups, rows: groups.reduce((n, g) => n + g.rows.length, 0) };
+  })()`);
+  const shot = join(DEMO_DIR, "sessions-order.png");
+  await page.screenshotFile(shot, { format: "png", scale: 1 });
+  const consoleEvents = page.cdp.events
+    .filter((e) => e.method === "Runtime.exceptionThrown")
+    .slice(-8)
+    .map((e) => (e.params?.exceptionDetails?.exception?.description || e.params?.exceptionDetails?.text || "").slice(0, 300));
+  console.log(JSON.stringify({ ...info, shot, consoleEvents }, null, 2));
+}
+
 /** Dump composer / send-button DOM candidates (debug helper for the chat handoff). */
 async function domDump(page) {
   await prepare(page);
@@ -846,6 +889,7 @@ async function main() {
     else if (mode === "record") await record(page);
     else if (mode === "probe") await probe(page);
     else if (mode === "dom") await domDump(page);
+    else if (mode === "sessions") await sessionsDump(page);
     else if (mode === "chattest") await chatTest(page);
     else if (mode === "selftest") await selftest(page);
     else throw new Error(`unknown mode: ${mode}`);

@@ -536,6 +536,54 @@ resetScopes();
   check("A5 相对时间·日期", times.some((x) => x === dateStr), `${JSON.stringify(times)} vs ${dateStr}`);
 }
 
+// A6 组内次序 = 「最近更新」——与 DSH 内置侧边栏默认的 orderBy: 'updated' 一致。
+// 回归：Workspace.sessionIds 是**挂载次序**（host attachSession 把新会话 prepend），
+// 直接拿来渲染会把「很久以前创建、现在正在用」的会话压在末尾。
+function orderedRowIds(tree) {
+  return rowsOf(tree).map((row) => row.props["data-session-id"]);
+}
+resetScopes();
+{
+  const fs = {
+    ids: ["s2", "s3", "s1"],
+    byId: {
+      s1: { id: "s1", title: "当前会话", displayTitle: "当前会话", cwd: "D:\\code\\ds_workspace", updatedAt: NOW - 10 * 1000, blank: false },
+      s2: { id: "s2", title: "三小时前", displayTitle: "三小时前", cwd: "D:\\code\\ds_workspace", updatedAt: NOW - 3 * 3600000, blank: false },
+      s3: { id: "s3", title: "五天前", displayTitle: "五天前", cwd: "D:\\code\\ds_workspace", updatedAt: NOW - 5 * 86400000, blank: false },
+    },
+    current: "s1",
+    phase: "ready",
+  };
+  const wf = workspacesFixture();
+  // 挂载次序：s3 最早挂载沉底、s1 刚挂载在头部 —— 但 s1 创建很早，最近才用
+  wf.items[0].sessionIds = ["s3", "s2", "s1"];
+  const tree = renderTree(Sidebar, { ...sidebarProps(), useSessions: (sel) => sel(fs), useWorkspaces: (sel) => sel(wf) });
+  check("A6 组内按最近更新排序（与 DSH 默认一致）",
+    JSON.stringify(orderedRowIds(tree)) === JSON.stringify(["s1", "s2", "s3"]),
+    JSON.stringify(orderedRowIds(tree)));
+}
+
+// A7 updatedAt 相同时按 id 升序 —— 官方 compareSessionRecency 的稳定 tie-break。
+resetScopes();
+{
+  const same = NOW - 60 * 1000;
+  const fs = {
+    ids: ["s2", "s1"],
+    byId: {
+      s1: { id: "s1", title: "同刻一", displayTitle: "同刻一", cwd: "D:\\code\\ds_workspace", updatedAt: same, blank: false },
+      s2: { id: "s2", title: "同刻二", displayTitle: "同刻二", cwd: "D:\\code\\ds_workspace", updatedAt: same, blank: false },
+    },
+    current: "s2",
+    phase: "ready",
+  };
+  const wf = workspacesFixture();
+  wf.items[0].sessionIds = ["s2", "s1"];
+  const tree = renderTree(Sidebar, { ...sidebarProps(), useSessions: (sel) => sel(fs), useWorkspaces: (sel) => sel(wf) });
+  check("A7 同一 updatedAt → id 升序稳定",
+    JSON.stringify(orderedRowIds(tree)) === JSON.stringify(["s1", "s2"]),
+    JSON.stringify(orderedRowIds(tree)));
+}
+
 // ═════════════════════════ B. WorkspaceSidebar 交互 ═════════════════════════
 // B1 打开会话
 resetScopes();

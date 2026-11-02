@@ -947,6 +947,38 @@
   }
 
   /**
+   * 会话行次序：与 DSH 内置侧边栏的**默认**排序（`orderBy: 'updated'`，
+   * 「最近更新」）一致。
+   *
+   * 不能直接用 Workspace 的 `sessionIds` 次序：那是**挂载次序**（host 侧
+   * `attachSession` 把新会话 prepend 到数组头），一个很久以前创建、现在仍在
+   * 用的会话会停在旧位置（表现为「当前会话排在倒数第二」）。DSH 默认视图
+   * 的做法是：按会话的 `updatedAt` 降序；时间相同时按 id 升序 —— 官方
+   * `compareSessionRecency` 就是这两个比较，id 作稳定 tie-break 是为了同一份
+   * 数据每次渲染次序稳定，不随 Map 迭代顺序抖动。
+   * @param a - 会话 id。
+   * @param b - 会话 id。
+   * @param byId - 会话 id → 会话摘要（`updatedAt` 为 epoch ms）。
+   * @returns 排序比较值（负 = a 更靠前）。
+   */
+  function compareSessionRecency(a, b, byId) {
+    const ta = byId[a]?.updatedAt ?? Number.NEGATIVE_INFINITY;
+    const tb = byId[b]?.updatedAt ?? Number.NEGATIVE_INFINITY;
+    if (ta !== tb) return tb - ta;
+    return a < b ? -1 : 1;
+  }
+
+  /**
+   * 按「最近更新」排会话 id 列表（不修改入参）。
+   * @param sessionIds - 待排的会话 id。
+   * @param byId - 会话 id → 会话摘要。
+   * @returns 新的已排序数组。
+   */
+  function sortedSessionIds(sessionIds, byId) {
+    return [...sessionIds].sort((a, b) => compareSessionRecency(a, b, byId));
+  }
+
+  /**
    * 一个会话及其全部子代理后代（闭包，含自身）。
    * 删父会话必须连子代理日志一起删：父级日志消失后，子会话会变成无法归属的
    * 悬空记录（列表里不再有父行可以承载它的血缘与状态）。
@@ -1621,7 +1653,9 @@
       return true;
     };
 
-    // 分组：工作区 sessionIds 账户为主，cwd === path 兜底；其余入「未分组」
+    // 分组：工作区 sessionIds 账户为主，cwd === path 兜底；其余入「未分组」。
+    // 组内次序**不**沿用 Workspace 的 sessionIds：那是挂载次序（新会话 prepend），
+    // 会让人气正旺的旧会话沉底。统一按「最近更新」排，与 DSH 内置侧边栏默认一致。
     const groups = useMemo(() => {
       const accounted = new Set();
       const list = [];
@@ -1640,11 +1674,12 @@
             accounted.add(sid);
           }
         }
-        list.push({ key: w.workspaceId, workspace: w, sessionIds: wsIds });
+        list.push({ key: w.workspaceId, workspace: w, sessionIds: sortedSessionIds(wsIds, byId) });
       }
-      const ungrouped = ids
-        .filter((sid) => !accounted.has(sid) && visibleSession(sid))
-        .sort((a, b) => (byId[b].updatedAt ?? 0) - (byId[a].updatedAt ?? 0));
+      const ungrouped = sortedSessionIds(
+        ids.filter((sid) => !accounted.has(sid) && visibleSession(sid)),
+        byId,
+      );
       return { list, ungrouped };
     }, [items, ids, byId, archived, current, purged]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1699,15 +1734,13 @@
     const q = query.trim().toLowerCase();
     const matched = useMemo(() => {
       if (q === "") return [];
-      return ids
-        .filter((sid) => {
-          if (!visibleSession(sid)) return false;
-          const s = byId[sid];
-          const title = (s.title ?? "").toLowerCase();
-          const display = (s.displayTitle ?? "").toLowerCase();
-          return title.includes(q) || display.includes(q);
-        })
-        .sort((a, b) => (byId[b].updatedAt ?? 0) - (byId[a].updatedAt ?? 0));
+      return sortedSessionIds(ids.filter((sid) => {
+        if (!visibleSession(sid)) return false;
+        const s = byId[sid];
+        const title = (s.title ?? "").toLowerCase();
+        const display = (s.displayTitle ?? "").toLowerCase();
+        return title.includes(q) || display.includes(q);
+      }), byId);
     }, [ids, byId, archived, q, current, purged]);
 
     // ── 批量操作 ──────────────────────────────────────────────────────────────
