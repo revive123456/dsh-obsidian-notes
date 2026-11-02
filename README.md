@@ -64,7 +64,7 @@ not enough.
 2. Search for **`dsh-obsidian-notes`** and install it.
 3. Restart DeepSeek Harness.
 
-> This path requires the package to be published on npm (target release 0.5.0).
+> This path requires the package to be published on npm (current release **0.5.2**).
 > If search shows nothing, use one of the two paths below.
 
 ### 2. CLI (after the npm release)
