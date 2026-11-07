@@ -7,6 +7,8 @@
 [![CI](https://github.com/revive123456/dsh-obsidian-notes/actions/workflows/ci.yml/badge.svg)](https://github.com/revive123456/dsh-obsidian-notes/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/revive123456/dsh-obsidian-notes/blob/main/LICENSE)
 ![DSH 0.2.1+](https://img.shields.io/badge/DSH-0.2.1%2B-blueviolet)
+[![dshbase verified](https://dshbase.com/badges/dsh-obsidian-notes.svg)](https://dshbase.com/zh/plugins/dsh-obsidian-notes/)
+[![GitHub stars](https://img.shields.io/github/stars/revive123456/dsh-obsidian-notes?style=flat)](https://github.com/revive123456/dsh-obsidian-notes/stargazers)
 
 English | [中文](https://github.com/revive123456/dsh-obsidian-notes/blob/main/README.zh.md)
 
