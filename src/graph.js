@@ -201,5 +201,148 @@ const graphModule = (() => {
     };
   }
 
-  return { layoutGraph, localSubgraph, adjacency, rng };
+
+  /** POSIX 风格拼接 + 折叠 `.`/`..`（客户端兜底构建时与 host 同一套链接解析）。 */
+  function joinPosix(dir, rel) {
+    const parts = dir === "" ? [] : dir.split("/");
+    for (const seg of rel.split("/")) {
+      if (seg === "" || seg === ".") continue;
+      if (seg === "..") parts.pop();
+      else parts.push(seg);
+    }
+    return parts.join("/");
+  }
+
+  /**
+   * `[[链接目标]]` → 笔记相对路径（与 host 侧 / Obsidian 语义一致：精确路径 →
+   * 相对当前笔记目录 → 文件名，多个候选取层数最浅再字母序）。
+   * 客户端兜底构建图谱时用；解析不到返回 null。
+   */
+  function resolveGraphLink(target, fromRel, byPath, byBase) {
+    let raw = String(target == null ? "" : target).trim();
+    if (raw === "" || /^[a-z]+:\/\//i.test(raw)) return null;
+    raw = raw.replace(/\\/g, "/");
+    const stripExt = (value) => value.replace(/\.md$/i, "");
+    const tryPath = (value) => byPath.get(stripExt(value).replace(/^\.\//, "").toLowerCase()) ?? null;
+    let hit = tryPath(raw);
+    if (hit !== null) return hit;
+    if (raw.includes("/") || raw.startsWith(".")) {
+      const dir = fromRel.includes("/") ? fromRel.slice(0, fromRel.lastIndexOf("/")) : "";
+      hit = tryPath(joinPosix(dir, raw));
+      if (hit !== null) return hit;
+    }
+    const base = stripExt(raw.split("/").pop()).toLowerCase();
+    const list = byBase.get(base);
+    if (list === undefined || list.length === 0) return null;
+    if (list.length === 1) return list[0];
+    return [...list].sort((a, b) => (a.split("/").length - b.split("/").length) || a.localeCompare(b))[0];
+  }
+
+  /**
+   * 客户端兜底：用「笔记列表 + 每篇的 links/tags」构建与 host 相同形状的图。
+   * 用途：插件升级后 host 还是旧版（没有 /obsidian/graph 路由）时，前端仍能
+   * 通过旧接口自建图谱 —— 用户无感知、不用重启 DSH。
+   * @param notes - `[{ path, links, tags }]`（path 为 vault 相对路径）。
+   * @returns `{ nodes, edges, stats }`。
+   */
+  function buildGraphFromNotes(notes, options = {}) {
+    const maxNotes = options.maxNotes ?? 1200;
+    const maxEdges = options.maxEdges ?? 12000;
+    const maxTags = options.maxTags ?? 800;
+    const list = [...notes].slice(0, maxNotes);
+    const byPath = new Map();
+    const byBase = new Map();
+    for (const note of list) {
+      const noExt = note.path.replace(/\.md$/i, "");
+      byPath.set(noExt.toLowerCase(), note.path);
+      const base = (noExt.split("/").pop() || noExt).toLowerCase();
+      const bucket = byBase.get(base);
+      if (bucket === undefined) byBase.set(base, [note.path]);
+      else bucket.push(note.path);
+    }
+    const nodes = new Map();
+    for (const note of list) {
+      nodes.set(`note:${note.path}`, {
+        id: `note:${note.path}`,
+        kind: "note",
+        label: (note.path.split("/").pop() || note.path).replace(/\.md$/i, ""),
+        path: note.path,
+      });
+    }
+    const edges = [];
+    const seen = new Set();
+    const addEdge = (source, target) => {
+      if (edges.length >= maxEdges) return;
+      const key = `${source}\u0000${target}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      edges.push({ source, target });
+    };
+    const tagIds = new Map();
+    let unresolved = 0;
+    for (const note of list) {
+      const self = `note:${note.path}`;
+      for (const link of note.links ?? []) {
+        const target = resolveGraphLink(link, note.path, byPath, byBase);
+        if (target === null) {
+          unresolved += 1;
+          continue;
+        }
+        if (target !== note.path) addEdge(self, `note:${target}`);
+      }
+      for (const tag of note.tags ?? []) {
+        const key = String(tag).toLowerCase();
+        let tagId = tagIds.get(key);
+        if (tagId === undefined) {
+          if (tagIds.size >= maxTags) continue;
+          tagId = `tag:${key}`;
+          tagIds.set(key, tagId);
+          nodes.set(tagId, { id: tagId, kind: "tag", label: `#${tag}` });
+        }
+        addEdge(self, tagId);
+      }
+    }
+    return {
+      nodes: [...nodes.values()],
+      edges,
+      stats: {
+        notes: list.length,
+        tags: tagIds.size,
+        edges: edges.length,
+        unresolved,
+        truncated: notes.length > maxNotes,
+        source: "client",
+      },
+    };
+  }
+
+
+  /**
+   * 从笔记内容 + frontmatter 提取标签（客户端兜底构建图谱时用；与 host 解析同语义）。
+   * @param content - 笔记正文。
+   * @param frontmatter - `{ tags: "..." }` 形态的 frontmatter 映射。
+   * @returns 标签名数组（不含 `#`、去重）。
+   */
+  function extractTags(content, frontmatter) {
+    const tags = new Set();
+    const fm = frontmatter && frontmatter.tags;
+    if (typeof fm === "string" && fm.trim() !== "") {
+      for (const token of fm.replace(/^\[|\]$/g, "").split(/[,\s]+/)) {
+        const tag = token.replace(/^#/, "").replace(/^["']|["']$/g, "").trim();
+        if (tag !== "" && /^[\p{L}\p{N}_/-]{1,64}$/u.test(tag)) tags.add(tag);
+      }
+    }
+    const body = String(content ?? "")
+      .replace(/```[\s\S]*?```/g, " ")
+      .replace(/~~~[\s\S]*?~~~/g, " ")
+      .replace(/`[^`\n]*`/g, " ");
+    const re = /(^|[\s(（\[【,，;；、>|])#([\p{L}\p{N}_/-]{1,64})/gu;
+    for (const match of body.matchAll(re)) {
+      const tag = match[2].replace(/\/+$/, "");
+      if (tag !== "" && !/^\d+$/.test(tag)) tags.add(tag);
+    }
+    return [...tags];
+  }
+
+  return { layoutGraph, localSubgraph, adjacency, rng, resolveGraphLink, buildGraphFromNotes, extractTags };
 })();

@@ -19,6 +19,8 @@ const SEARCH_LIMIT = 4000;              // 搜索最多扫描的文件数
 const SEARCH_RESULT_LIMIT = 100;
 const EMBED_SEARCH_LIMIT = 4000;        // embed 目标「后缀匹配」最多扫描的文件数
 const NOTE_EXT = ".md";
+/** host 能力清单：客户端据此判断「新版 UI + 旧版 host」的版本错配，避免撞 404 裸报错。 */
+export const HOST_FEATURES = ["graph"];
 const IMAGE_MIME = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
@@ -857,9 +859,9 @@ export function createHandler(options = {}) {
           const st = await stat(currentCanon);
           if (!st.isDirectory()) throw new Error("not a directory");
         } catch {
-          return send(res, 200, { root: current, exists: false, attachmentDir });
+          return send(res, 200, { root: current, exists: false, attachmentDir, features: HOST_FEATURES });
         }
-        return send(res, 200, { root: currentCanon, exists: true, ...attachSettings });
+        return send(res, 200, { root: currentCanon, exists: true, ...attachSettings, features: HOST_FEATURES });
       }
 
       // `/session-delete` is vault-independent: deleting a session's log has

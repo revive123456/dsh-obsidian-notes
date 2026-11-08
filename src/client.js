@@ -134,6 +134,14 @@
     graphTruncated: "笔记较多，图谱只画了最重要的 {n} 个节点",
     graphNoNote: "先在侧边栏打开一篇笔记，才能看局部图谱",
     graphOpen: "打开关系图谱",
+    graphMove: "拖动移动面板",
+    graphNeedsRestart: "关系图谱需要重启 DSH 后启用",
+    graphRestartHint: "当前 DSH 进程里还是旧版 host（缺少 /obsidian/graph 路由）。完全退出 DSH（Cmd+Q）再打开，然后点「重试」。",
+    graphErrorTitle: "关系图谱加载失败",
+    graphBuilding: "正在从笔记构建图谱（{done}/{total}）…",
+    graphRetry: "重试",
+    graphDetails: "详细信息",
+    graphDetailsHide: "收起详细信息",
     cited: "已引用到对话",
     copied: "已复制引用，可粘贴到输入框",
     noInput: "未找到对话输入框，引用已复制到剪贴板",
@@ -293,6 +301,14 @@
     graphTruncated: "Large vault: only the {n} most connected nodes are drawn",
     graphNoNote: "Open a note in the sidebar first to see the local graph",
     graphOpen: "Open the graph view",
+    graphMove: "Drag to move the panel",
+    graphNeedsRestart: "The graph view needs a DSH restart",
+    graphRestartHint: "The running DSH host still predates the /obsidian/graph route. Quit DSH completely (Cmd+Q), reopen it, then press Retry.",
+    graphErrorTitle: "The graph view failed to load",
+    graphBuilding: "Building the graph from notes ({done}/{total})…",
+    graphRetry: "Retry",
+    graphDetails: "Details",
+    graphDetailsHide: "Hide details",
     cited: "Cited to chat",
     copied: "Reference copied — paste it into the input",
     noInput: "No chat input found — reference copied to clipboard",
@@ -343,6 +359,7 @@
   // ── 共享外部 store（跨槽位：侧边栏 / Dock / Toast）──────────────────────────
   const LS_NOTES_OPEN = "dsh-obsidian:notesOpen";
   const LS_DOCK_WIDTH = "dsh-obsidian:dockWidth";
+  const LS_GRAPH_GEOMETRY = "dsh-obsidian:graphGeometry";
 
   function readNotesOpen() {
     try {
@@ -818,8 +835,18 @@
     `.dsh-obs-map-empty{display:flex;align-items:center;justify-content:center;height:100%;min-height:220px;padding:24px;color:var(--dsw-alias-label-tertiary);text-align:center}`,
     `.dsh-obs-md-row.dsh-obs-md-flash{background:color-mix(in srgb,var(--dsw-alias-brand-primary) 16%,transparent);border-radius:4px}`,
     // ── 关系图谱（shell.overlay，vault 级独立视图）──
-    `.dsh-obs-graph{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:40;display:flex;flex-direction:column;width:min(1120px,94vw);height:min(760px,88vh);border:1px solid var(--dsw-alias-border-l2);border-radius:14px;background:var(--dsw-alias-bg-overlay);box-shadow:0 24px 64px rgba(0,0,0,.45);overflow:hidden;color:var(--dsw-alias-label-primary)}`,
-    `.dsh-obs-graph-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--dsw-alias-border-l2);flex-wrap:wrap}`,
+    `.dsh-obs-graph{position:fixed;z-index:40;display:flex;flex-direction:column;box-sizing:border-box;min-width:560px;min-height:360px;border:1px solid var(--dsw-alias-border-l2);border-radius:14px;background:var(--dsw-alias-bg-overlay);box-shadow:0 24px 64px rgba(0,0,0,.45);overflow:hidden;color:var(--dsw-alias-label-primary)}`,
+    `.dsh-obs-graph-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--dsw-alias-border-l2);flex-wrap:wrap;cursor:move;user-select:none;-webkit-user-select:none}`,
+    `.dsh-obs-graph-resize{position:absolute;right:2px;bottom:2px;width:16px;height:16px;cursor:nwse-resize;border-right:2px solid var(--dsw-alias-border-l2);border-bottom:2px solid var(--dsw-alias-border-l2);opacity:.75}`,
+    `.dsh-obs-graph-error{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:8px;padding:32px;text-align:center}`,
+    `.dsh-obs-graph-error-icon{font-size:26px}`,
+    `.dsh-obs-graph-error-title{font-size:14px;font-weight:600;color:var(--dsw-alias-label-primary)}`,
+    `.dsh-obs-graph-error-text{font-size:12px;line-height:1.7;color:var(--dsw-alias-label-secondary);max-width:560px}`,
+    `.dsh-obs-graph-error-actions{display:flex;gap:8px;margin-top:8px}`,
+    `.dsh-obs-graph-error-actions button{padding:5px 12px;font-size:12px;border-radius:8px;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-primary);cursor:pointer}`,
+    `.dsh-obs-graph-error-actions button:hover{background:var(--dsw-alias-interactive-bg-hover)}`,
+    `.dsh-obs-graph-error-actions button.dsh-obs-primary{background:var(--dsw-alias-button-primary-fill);border-color:var(--dsw-alias-button-primary-fill);color:var(--dsw-alias-label-primary-foreground)}`,
+    `.dsh-obs-graph-error-details{max-width:560px;max-height:120px;overflow:auto;margin-top:6px;padding:8px;border-radius:6px;background:var(--dsw-alias-interactive-bg-hover);font-size:11px;color:var(--dsw-alias-label-tertiary);white-space:pre-wrap;word-break:break-all;text-align:left}`,
     `.dsh-obs-graph-title{font-weight:600;font-size:14px}`,
     `.dsh-obs-graph-stats{font-size:11px;color:var(--dsw-alias-label-tertiary)}`,
     `.dsh-obs-graph-modes{display:flex;gap:4px;margin-left:auto}`,
@@ -2692,17 +2719,90 @@
     const [hovered, setHovered] = useState(null);
     const [reloadKey, setReloadKey] = useState(0);
     const [transform, setTransform] = useState({ x: 0, y: 0, s: 1 });
+    const [detailsOpen, setDetailsOpen] = useState(false);
+    const [buildProgress, setBuildProgress] = useState(null);
     const dragRef = useRef(null);
     const wrapRef = useRef(null);
+    const panelDragRef = useRef(null);
+    const resizeRef = useRef(null);
+    // 面板几何：可拖动、可缩放、可关闭（和笔记 Dock 同一套交互），位置/尺寸持久化
+    const [geometry, setGeometry] = useState(() => {
+      const fallback = { x: null, y: 64, width: 860, height: 600 };
+      try {
+        const raw = localStorage.getItem(LS_GRAPH_GEOMETRY);
+        if (raw !== null) {
+          const parsed = JSON.parse(raw);
+          if (typeof parsed === "object" && parsed !== null) {
+            return {
+              x: typeof parsed.x === "number" ? parsed.x : null,
+              y: typeof parsed.y === "number" ? parsed.y : 64,
+              width: Number.isFinite(parsed.width) ? Math.min(Math.max(560, parsed.width), 1600) : 860,
+              height: Number.isFinite(parsed.height) ? Math.min(Math.max(360, parsed.height), 1200) : 600,
+            };
+          }
+        }
+      } catch { /* 忽略坏掉的本地存储 */ }
+      return fallback;
+    });
 
     useEffect(() => {
       let cancelled = false;
       setLoading(true);
       setError("");
-      treeApi.graph().then((res) => {
-        if (cancelled) return;
+      setBuildProgress(null);
+      // 旧 host 没有 /obsidian/graph 路由时的兜底：用已有的 tree/note 接口在浏览器里
+      // 自建同一张图（插件升级后页面刷新即可用，不要求用户重启 DSH）。
+      const buildFromClient = async () => {
+        const dirs = [""];
+        const notes = [];
+        while (dirs.length > 0 && notes.length < 1200) {
+          const rel = dirs.shift();
+          let res;
+          try {
+            res = await treeApi.tree(rel);
+          } catch {
+            continue;
+          }
+          for (const entry of res.entries ?? []) {
+            const path = rel === "" ? entry.name : `${rel}/${entry.name}`;
+            if (entry.type === "dir") dirs.push(path);
+            else if (entry.type === "note") notes.push({ path });
+          }
+        }
+        const collected = new Array(notes.length).fill(null);
+        let done = 0;
+        let cursor = 0;
+        setBuildProgress({ done, total: notes.length });
+        const worker = async () => {
+          while (cursor < notes.length && !cancelled) {
+            const index = cursor;
+            cursor += 1;
+            try {
+              const note = await treeApi.note(notes[index].path);
+              collected[index] = {
+                path: notes[index].path,
+                links: Array.isArray(note.links) ? note.links : [],
+                tags: graphModule.extractTags(note.content ?? "", note.frontmatter),
+              };
+            } catch { /* 单篇读失败不影响整张图 */ }
+            done += 1;
+            if ((done % 8 === 0 || done === notes.length) && !cancelled) setBuildProgress({ done, total: notes.length });
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(6, Math.max(1, notes.length)) }, worker));
+        if (cancelled) return null;
+        return graphModule.buildGraphFromNotes(collected.filter(Boolean));
+      };
+      treeApi.root().then((root) => {
+        if (cancelled) return null;
+        const features = root && Array.isArray(root.features) ? root.features : [];
+        if (!features.includes("graph")) return buildFromClient();
+        return treeApi.graph();
+      }).then((res) => {
+        if (cancelled || res === null || res === undefined) return;
         setData(res);
         setLoading(false);
+        setBuildProgress(null);
       }).catch((err) => {
         if (cancelled) return;
         setError(String(err && err.message ? err.message : err));
@@ -2710,6 +2810,59 @@
       });
       return () => { cancelled = true; };
     }, [reloadKey]);
+
+    // 位置/尺寸持久化
+    useEffect(() => {
+      try { localStorage.setItem(LS_GRAPH_GEOMETRY, JSON.stringify(geometry)); } catch { /* ignore */ }
+    }, [geometry]);
+
+    // 拖动标题栏移动面板（按钮上不触发）
+    const beginPanelDrag = useCallback((e) => {
+      if (e.target && e.target.closest && e.target.closest("button")) return;
+      e.preventDefault();
+      const el = e.currentTarget && e.currentTarget.parentElement;
+      const base = { x: geometry.x !== null ? geometry.x : (el && typeof el.getBoundingClientRect === "function" ? el.getBoundingClientRect().left : 80), y: geometry.y };
+      panelDragRef.current = { startX: e.clientX, startY: e.clientY, base };
+      const onMove = (ev) => {
+        const st = panelDragRef.current;
+        if (!st) return;
+        setGeometry((prev) => ({
+          ...prev,
+          x: Math.min(Math.max(0, st.base.x + ev.clientX - st.startX), Math.max(0, window.innerWidth - 240)),
+          y: Math.min(Math.max(8, st.base.y + ev.clientY - st.startY), Math.max(8, window.innerHeight - 120)),
+        }));
+      };
+      const onUp = () => {
+        panelDragRef.current = null;
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    }, [geometry.x, geometry.y]);
+
+    // 右下角缩放面板
+    const beginPanelResize = useCallback((e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      resizeRef.current = { startX: e.clientX, startY: e.clientY, baseW: geometry.width, baseH: geometry.height };
+      const onMove = (ev) => {
+        const st = resizeRef.current;
+        if (!st) return;
+        setGeometry((prev) => ({
+          ...prev,
+          width: Math.min(Math.max(560, st.baseW + ev.clientX - st.startX), Math.round(window.innerWidth * 0.96)),
+          height: Math.min(Math.max(360, st.baseH + ev.clientY - st.startY), Math.round(window.innerHeight * 0.94)),
+        }));
+      };
+      const onUp = () => {
+        resizeRef.current = null;
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    }, [geometry.width, geometry.height]);
 
     const currentRel = currentNote && currentNote.rel ? currentNote.rel : null;
     const focusId = currentRel !== null ? `note:${currentRel}` : null;
@@ -2785,7 +2938,11 @@
     };
     const showAllLabels = plan.nodes.length <= 150;
 
-    const head = createElement("div", { className: "dsh-obs-graph-head" },
+    const head = createElement("div", {
+      className: "dsh-obs-graph-head",
+      title: t("graphMove"),
+      onMouseDown: beginPanelDrag,
+    },
       createElement("div", { className: "dsh-obs-graph-title" }, `🕸 ${t("graph")}`),
       data !== null && createElement("div", { className: "dsh-obs-graph-stats" },
         t("graphStats", { notes: data.stats.notes, tags: data.stats.tags, edges: data.stats.edges })),
@@ -2808,9 +2965,23 @@
 
     let body;
     if (loading) {
-      body = createElement("div", { className: "dsh-obs-graph-empty" }, t("graphLoading"));
+      body = createElement("div", { className: "dsh-obs-graph-empty" },
+        buildProgress !== null
+          ? t("graphBuilding", { done: buildProgress.done, total: buildProgress.total })
+          : t("graphLoading"));
     } else if (error !== "") {
-      body = createElement("div", { className: "dsh-obs-graph-empty" }, t("graphError", { msg: error }));
+      body = createElement("div", { className: "dsh-obs-graph-error" },
+        createElement("div", { className: "dsh-obs-graph-error-icon" }, "⚠️"),
+        createElement("div", { className: "dsh-obs-graph-error-title" }, t("graphErrorTitle")),
+        createElement("div", { className: "dsh-obs-graph-error-text" }, t("graphError", { msg: error })),
+        createElement("div", { className: "dsh-obs-graph-error-actions" },
+          createElement("button", { className: "dsh-obs-primary", onClick: () => setReloadKey((v) => v + 1) }, `↻ ${t("graphRetry")}`),
+          createElement("button", {
+            onClick: () => setDetailsOpen((v) => !v),
+          }, detailsOpen ? t("graphDetailsHide") : t("graphDetails")),
+        ),
+        detailsOpen && createElement("pre", { className: "dsh-obs-graph-error-details" }, error),
+      );
     } else if (plan.nodes.length === 0) {
       body = createElement("div", { className: "dsh-obs-graph-empty" },
         mode === "local" ? t("graphNoNote") : t("graphEmpty"));
@@ -2876,14 +3047,19 @@
     }
 
     const truncatedNote = plan.truncated ? t("graphTruncated", { n: plan.nodes.length }) : t("graphHint");
+    const style = geometry.x === null
+      ? { right: 24, top: geometry.y, width: geometry.width, height: geometry.height }
+      : { left: geometry.x, top: geometry.y, width: geometry.width, height: geometry.height };
     return createElement("div", {
       className: "dsh-obs-graph",
       role: "dialog",
       "aria-label": t("graph"),
+      style,
     },
       head,
       body,
       createElement("div", { className: "dsh-obs-graph-hint" }, truncatedNote),
+      createElement("div", { className: "dsh-obs-graph-resize", title: t("resize"), onMouseDown: beginPanelResize }),
     );
   }
 

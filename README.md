@@ -59,6 +59,16 @@ A plugin that ships a bundle layer is only composed at startup, so **restart the
 DSH host after installing** (desktop: quit and reopen). Refreshing the page is
 not enough.
 
+### Already installed? Upgrading
+
+Replacing the package and refreshing the page is enough for new UI features: the
+client asks the host which capabilities it has (`/obsidian/root` → `features`)
+and, when the running host is still the previous version, builds data it needs
+from the existing routes instead of erroring. The relation graph, for example,
+falls back to walking the vault with the old tree/note endpoints — no restart
+and no "version mismatch" dialog. Restart the host when you want the faster
+host-side route.
+
 ### 1. Desktop app (after the npm release)
 
 1. Open **Settings → Plugins**.

@@ -48,6 +48,8 @@ function check(name, cond, extra = "") {
 {
   const r = await call("/obsidian/root");
   check("root", r.status === 200 && r.json.root === vault && r.json.exists === true, r.json.root);
+  check("root features 声明 graph（客户端据此判断旧 host）",
+    Array.isArray(r.json.features) && r.json.features.includes("graph"), JSON.stringify(r.json.features));
 }
 // 2. tree
 {

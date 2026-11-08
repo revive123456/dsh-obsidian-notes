@@ -68,6 +68,30 @@ const edges = [
   check("局部子图只保留内部边", local.edges.every((e) => local.nodes.some((n) => n.id === e.source) && local.nodes.some((n) => n.id === e.target)));
 }
 
+// ── 客户端兜底构建（旧 host 无 /graph 路由时用）─────────────────────────────
+{
+  const notes = [
+    { path: "a.md", links: ["B", "missing"], tags: ["alpha"] },
+    { path: "sub/b.md", links: ["a"], tags: [] },
+    { path: "sub/c.md", links: [], tags: ["beta"] },
+  ];
+  const built = graphModule.buildGraphFromNotes(notes);
+  const ids = new Set(built.nodes.map((n) => n.id));
+  const keys = new Set(built.edges.map((e) => `${e.source}->${e.target}`));
+  check("兜底构建：3 篇笔记 + 2 个标签", built.stats.notes === 3 && built.stats.tags === 2 && ids.has("note:sub/b.md") && ids.has("tag:alpha"),
+    JSON.stringify(built.stats));
+  check("兜底构建：链接解析（B → sub/b.md，反向 [[a]]）",
+    keys.has("note:a.md->note:sub/b.md") && keys.has("note:sub/b.md->note:a.md"), [...keys].join(" | "));
+  check("兜底构建：未解析链接计数且不产生幽灵节点",
+    built.stats.unresolved === 1 && ![...ids].some((id) => id.includes("missing")));
+  check("兜底构建：标签边", keys.has("note:a.md->tag:alpha") && keys.has("note:sub/c.md->tag:beta"));
+  check("兜底构建：source 标记为 client", built.stats.source === "client");
+  check("extractTags：frontmatter + 正文标签，代码里的不算",
+    JSON.stringify(graphModule.extractTags("正文 #gamma `#notatag` \n```\n#infence\n```", { tags: "[alpha, beta]" }).sort())
+      === JSON.stringify(["alpha", "beta", "gamma"]),
+    JSON.stringify(graphModule.extractTags("正文 #gamma `#notatag` \n```\n#infence\n```", { tags: "[alpha, beta]" })));
+}
+
 const failed = checks.filter((c) => !c.cond);
 if (failed.length > 0) {
   console.error(`\n${failed.length} 条图谱布局断言失败：${failed.map((c) => c.name).join(" | ")}`);

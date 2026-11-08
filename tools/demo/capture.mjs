@@ -686,6 +686,53 @@ async function chatTest(page) {
 }
 
 
+/** 打开关系图谱并截图一张（验收面板样式用）。GRAPH_STALE=1 时模拟旧 host：root 无 features。 */
+async function graphShot(page) {
+  await prepare(page);
+  const stale = process.env.GRAPH_STALE === "1";
+  if (stale) {
+    // 旧 host 的特征：/obsidian/root 不返回 features，且 /obsidian/graph 404
+    await page.evaluate(`(() => {
+      const realFetch = window.fetch.bind(window);
+      window.fetch = (url, init) => {
+        const href = String(url);
+        if (href.includes("/obsidian/root")) {
+          return realFetch(url, init).then(async (res) => {
+            const body = await res.json();
+            delete body.features;
+            return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+          });
+        }
+        if (href.includes("/obsidian/graph")) {
+          return Promise.resolve(new Response(JSON.stringify({ error: "unknown action graph" }), { status: 404, headers: { "content-type": "application/json" } }));
+        }
+        return realFetch(url, init);
+      };
+      return true;
+    })()`);
+  }
+  await openNotes(page);
+  await sleep(500);
+  await expandFolder(page, "Projects", "Why a notes pane");
+  await sleep(250);
+  await openNote(page, "Why a notes pane");
+  await sleep(500);
+  const opened = await page.evaluate(`(() => {
+    const row = [...document.querySelectorAll('.dsh-obs-root-row')].find((r) => (r.textContent || "").includes("Graph view") || (r.textContent || "").includes("关系图谱"));
+    if (!row) return false;
+    const btn = row.querySelector("button");
+    if (!btn) return false;
+    btn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+    return true;
+  })()`);
+  if (!opened) throw new Error("graph entry row not found");
+  await page.waitFor(`!!document.querySelector('.dsh-obs-graph')`, { timeout: 15000, label: "graph panel" });
+  await sleep(stale ? 1400 : 2600);
+  const shot = join(DEMO_DIR, stale ? "graph-error.png" : "graph-panel.png");
+  await page.screenshotFile(shot, { format: "png", scale: 1 });
+  console.log(JSON.stringify({ stale, shot }));
+}
+
 /**
  * 关系图谱演示录制：笔记树 → vault 级「关系图谱」入口 → 全库图谱 → 平移/缩放 →
  * 悬停看邻居 → 点节点打开笔记 → 切「局部」→ 关图谱。
@@ -1178,6 +1225,7 @@ async function main() {
     else if (mode === "sessions") await sessionsDump(page);
     else if (mode === "mapdemo") await mapDemo(page);
     else if (mode === "graphdemo") await graphDemo(page);
+    else if (mode === "graphshot") await graphShot(page);
     else if (mode === "chattest") await chatTest(page);
     else if (mode === "selftest") await selftest(page);
     else throw new Error(`unknown mode: ${mode}`);
