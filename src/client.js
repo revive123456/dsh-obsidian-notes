@@ -750,6 +750,10 @@
     `.dsh-obs-md-lc{flex:1;min-width:0}`,
     `.dsh-obs-dock-body .dsh-obs-md-row .dsh-obs-md-lc p,.dsh-obs-dock-body .dsh-obs-md-row .dsh-obs-md-lc h1,.dsh-obs-dock-body .dsh-obs-md-row .dsh-obs-md-lc h2,.dsh-obs-dock-body .dsh-obs-md-row .dsh-obs-md-lc h3,.dsh-obs-dock-body .dsh-obs-md-row .dsh-obs-md-lc h4,.dsh-obs-dock-body .dsh-obs-md-row .dsh-obs-md-lc h5,.dsh-obs-dock-body .dsh-obs-md-row .dsh-obs-md-lc h6,.dsh-obs-dock-body .dsh-obs-md-row .dsh-obs-md-lc blockquote{margin:0;padding:0}`,
     `.dsh-obs-md-row.dsh-obs-md-heading .dsh-obs-md-lc{font-weight:600}`,
+    // 行内 Obsidian 语法：==高亮== / ~~删除线~~ / 裸链接与自动链接
+    `.dsh-obs-md mark,.dsh-obs-mark{background:rgba(255,208,0,.32);color:inherit;border-radius:2px;padding:0 1px}`,
+    `.dsh-obs-md del{opacity:.62;text-decoration:line-through}`,
+    `.dsh-obs-md .dsh-obs-autolink{color:var(--dsw-alias-brand-primary);text-decoration:underline;text-underline-offset:2px;word-break:break-all}`,
     `.dsh-obs-md-row.dsh-obs-md-quote .dsh-obs-md-lc{border-left:3px solid var(--dsw-alias-brand-primary);padding-left:10px;color:var(--dsw-alias-label-secondary)}`,
     // ── Obsidian callout（`> [!type] 标题`）配色：类型在根节点上带 data-callout ──
     `[data-callout="note"]{--dsh-obs-callout-color:#448aff}`,

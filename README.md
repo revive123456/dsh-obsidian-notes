@@ -18,9 +18,8 @@ English | [中文](https://github.com/revive123456/dsh-obsidian-notes/blob/main/
 
 There is already an Obsidian-ish plugin in the DSH ecosystem
 ([DedsecLemon/dsh-obsidian](https://github.com/DedsecLemon/dsh-obsidian)), and it
-is a good fit if you want an outline pane, backlinks and `==highlight==`. This
-plugin bet on a different set of things — the three that matter if you write next
-to a chat:
+is a good fit if you want an outline pane and backlinks. This plugin bet on a
+different set of things — the three that matter if you write next to a chat:
 
 1. **Rendering fidelity is the feature.** The preview is line-numbered and keeps
    the Obsidian details other viewers flatten: all 13 callout types plus 15
@@ -120,7 +119,9 @@ The default vault is `$DSH_WORKSPACE/obsidian_vault`, falling back to
 - **Line-numbered Obsidian preview** — every source line keeps its line number.
   Real tables with alignment, fenced code with language labels, nested lists and
   task lists, all heading levels, setext headings, horizontal rules, and
-  clickable `[[wikilinks]]` (aliases and `#sections` included).
+  clickable `[[wikilinks]]` (aliases and `#sections` included). Inline Obsidian
+  styles render too: `==highlight==`, `~~strikethrough~~`, backslash escapes,
+  hidden `%%comments%%`, and `<https://…>` / bare URLs as links.
 - **Callouts** — `> [!type] title` blocks render with type colours, icons and
   badges. 13 canonical types (`note`, `abstract`, `info`, `todo`, `tip`,
   `success`, `question`, `warning`, `failure`, `danger`, `bug`, `example`,
@@ -168,7 +169,7 @@ the app's light and dark themes.
 | Session & workspace housekeeping | ✅ | — |
 | Backlinks | ❌ | ✅ |
 | Outline pane | ❌ | ✅ |
-| `==highlight==` | ❌ | ✅ |
+| `==highlight==` | ✅ | ✅ |
 
 The point is not "more features" — it is a different trade-off. If you need
 outline and backlinks, use the other plugin (or Obsidian itself); if you want a
@@ -248,10 +249,10 @@ Settings are persisted in `$DSH_HOME/dsh-obsidian-vault.json`
 - **Node.js:** `^22.19 || >=24` (needed only when running the host from source).
 - **OS:** paths are handled with the platform separator; session paths use
   `$DSH_HOME`. The screenshots above were captured on macOS.
-- **Not rendered** (kept as source text): math, mermaid, footnotes, strikethrough
-  and highlight, tags, raw HTML, note transclusion, audio/PDF embeds, block refs
-  (`^id`), callout folding/unknown types/nested callouts, and some inline
-  emphasis edge cases (`***bold italic***`, nested emphasis, `_` next to text).
+- **Not rendered** (kept as source text): math, mermaid, footnotes, tags, raw
+  HTML, note transclusion, audio/PDF embeds, block refs (`^id`), callout
+  folding/unknown types/nested callouts, and some inline emphasis edge cases
+  (`***bold italic***`, nested emphasis, `_` next to text).
 
 ## Development
 

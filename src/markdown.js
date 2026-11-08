@@ -78,10 +78,14 @@ const renderMarkdownModule = (() => {
     return null;
   }
 
-  // ── 行内解析（code > img > embed > link > wikilink > strong > em，取最左匹配）──
+  // ── 行内解析（escape > code > img > embed > link > wikilink > strong > emph >
+  //    strike > highlight > comment > autolink > barelink，取最左匹配；
+  //    同一位置按数组顺序）──
   // M7：双链/embed 分开捕获 target（m[1]）、章节（m[2]）、别名（m[3]），
   // 显示时别名优先、其次「target › 章节」，偏移各自映射到源码切片。
   const INLINE_PATTERNS = [
+    // 反斜杠转义：`\*` 等只显示被转义的字符本身（偏移只覆盖该字符，不含反斜杠）
+    ["escape", /\\([\\`*_{}\[\]()#+\-.!|>~=])/],
     ["code", /`([^`\n]+)`/],
     ["img", /!\[([^\]]*)\]\(([^)\s]+)\)/],
     ["embed", /!\[\[([^\]|#\n]*)(?:#([^\]|\n]*))?(?:\|([^\]\n]*))?\]\]/],
@@ -89,6 +93,13 @@ const renderMarkdownModule = (() => {
     ["wiki", /\[\[([^\]|#\n]*)(?:#([^\]|\n]*))?(?:\|([^\]\n]*))?\]\]/],
     ["strong", /\*\*([^*\n]+)\*\*|__([^_\n]+)__/],
     ["em", /(^|[^*])\*([^*\n]+)\*(?!\*)|(^|[^_])_([^_\n]+)_(?!_)/],
+    ["strike", /~~([^~\n]+)~~/],
+    ["highlight", /==([^=\n]+)==/],
+    // Obsidian 注释 %%…%%：预览里不显示（单行；跨行注释留到 P2 block 阶段）
+    ["comment", /%%([^%\n]*)%%/],
+    ["autolink", /<(https?:[^\s<>]+)>/],
+    // 裸 URL：只吃 ASCII URL 字符，中文正文/中文标点自然截断（尾部标点下面再收一次）
+    ["barelink", /https?:\/\/[A-Za-z0-9\-._~:/?#@!$&'*+,;=%]+/],
   ];
   const patternIndex = (name) => INLINE_PATTERNS.findIndex((p) => p[0] === name);
 
@@ -194,21 +205,39 @@ const renderMarkdownModule = (() => {
       if (m.index > 0) pushText(rest.slice(0, m.index));
 
       const contentLen = (() => {
-        if (name === "code") return m[1].length;
-        if (name === "img") return 0;                       // alt 不渲染为可选中文本
-        if (name === "embed") return m[0].length;           // 按钮/图占整个 ![[...]] 源码
-        if (name === "link" || name === "wiki") return m[1].length;
-        if (name === "strong") return (m[1] ?? m[2]).length;
-        return (m[2] ?? m[4]).length;                       // em（m[0] 含前缀组）
+        switch (name) {
+          case "code": return m[1].length;
+          case "img": return 0;                       // alt 不渲染为可选中文本
+          case "embed": return m[0].length;           // 按钮/图占整个 ![[...]] 源码
+          case "link":
+          case "wiki": return m[1].length;
+          case "strong": return (m[1] ?? m[2]).length;
+          case "em": return (m[2] ?? m[4]).length;    // em（m[0] 含前缀组）
+          case "escape": return 1;                    // 只显示被转义的那一个字符
+          case "strike":
+          case "highlight": return m[1].length;
+          case "comment": return m[1].length;
+          case "autolink": return m[1].length;
+          case "barelink": return m[0].length;
+          default: return 0;
+        }
       })();
       const openLen = (() => {
-        if (name === "code") return 1;                      // `
-        if (name === "link") return 1;                      // [
-        if (name === "wiki") return 2;                      // [[
-        if (name === "embed") return 0;                     // 以整段 ![[...]] 作为可选中源码
-        if (name === "strong") return 2;                    // ** 或 __
-        if (name === "em") return m[0].length - contentLen - 1; // 前缀 + *
-        return 0;
+        switch (name) {
+          case "code": return 1;                      // `
+          case "link": return 1;                      // [
+          case "wiki": return 2;                      // [[
+          case "embed": return 0;                     // 以整段 ![[...]] 作为可选中源码
+          case "strong": return 2;                    // ** 或 __
+          case "em": return m[0].length - contentLen - 1; // 前缀 + *
+          case "escape": return 1;                    // 反斜杠
+          case "strike":
+          case "highlight": return 2;                 // ~~ 或 ==
+          case "comment": return 2;                   // %%
+          case "autolink": return 1;                  // <
+          case "barelink": return 0;
+          default: return 0;
+        }
       })();
       const bodyStart = cur + openLen;                      // cur 已含 m.index
 
@@ -281,6 +310,63 @@ const renderMarkdownModule = (() => {
           },
           wikilinkDisplayNodes(parts, m, cur, key, handlers),
         ));
+      } else if (name === "escape") {
+        // 反斜杠转义：只把被转义的字符渲染成文本（偏移只覆盖该字符，不含反斜杠）
+        const n = textNode(m[1], bodyStart, bodyStart + 1, `${keyBase}-x${keyIndex++}`, handlers);
+        if (n) nodes.push(n);
+      } else if (name === "strike" || name === "highlight") {
+        // ~~删除线~~ / ==高亮==：内容继续走行内解析（可嵌套粗体/链接/代码）
+        nodes.push(createElement(
+          name === "strike" ? "del" : "mark",
+          {
+            key: `${keyBase}-${name === "strike" ? "d" : "m"}${keyIndex++}`,
+            ...(name === "highlight" ? { className: "dsh-obs-mark" } : {}),
+          },
+          renderInline(m[1], handlers, `${keyBase}-${name}`, bodyStart),
+        ));
+      } else if (name === "comment") {
+        // Obsidian 的 %%注释%% 在预览里不显示：整段不产生节点（源码偏移留空，
+        // 不影响其它片段的单调性；选中范围也不会把它带进提问内容）。
+      } else if (name === "autolink") {
+        // <https://…> → 链接；显示文本是尖括号里的 URL（偏移不含尖括号）
+        const href = safeUrl(m[1]);
+        if (href === null) {
+          const n = textNode(m[0], cur, cur + m[0].length, `${keyBase}-al${keyIndex++}`, handlers);
+          if (n) nodes.push(n);
+        } else {
+          nodes.push(createElement("a", {
+            key: `${keyBase}-al${keyIndex++}`,
+            href,
+            target: "_blank",
+            rel: "noreferrer",
+            className: "dsh-obs-autolink",
+          }, textNode(m[1], bodyStart, bodyStart + m[1].length, `${keyBase}-alt${keyIndex}`, handlers)));
+        }
+      } else if (name === "barelink") {
+        // 裸 URL：尾部标点与不配对的右括号留给普通文本，不算进链接地址
+        const raw = m[0];
+        let url = raw;
+        while (url.length > 0 && /[.,;:!?'"，。；：！？、]/.test(url[url.length - 1])) url = url.slice(0, -1);
+        while (url.endsWith(")") && (url.match(/\(/g) ?? []).length < (url.match(/\)/g) ?? []).length) {
+          url = url.slice(0, -1);
+        }
+        const href = safeUrl(url);
+        if (href === null) {
+          const n = textNode(raw, cur, cur + raw.length, `${keyBase}-bl${keyIndex++}`, handlers);
+          if (n) nodes.push(n);
+        } else {
+          nodes.push(createElement("a", {
+            key: `${keyBase}-bl${keyIndex++}`,
+            href,
+            target: "_blank",
+            rel: "noreferrer",
+            className: "dsh-obs-autolink",
+          }, textNode(url, cur, cur + url.length, `${keyBase}-blt${keyIndex}`, handlers)));
+          if (url.length < raw.length) {
+            const n = textNode(raw.slice(url.length), cur + url.length, cur + raw.length, `${keyBase}-bltail${keyIndex}`, handlers);
+            if (n) nodes.push(n);
+          }
+        }
       } else {
         const body = name === "strong" ? (m[1] ?? m[2]) : (m[2] ?? m[4]);
         nodes.push(createElement(

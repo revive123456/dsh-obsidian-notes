@@ -18,7 +18,7 @@
 
 DSH 生态里已经有一个 Obsidian 方向的插件
 （[DedsecLemon/dsh-obsidian](https://github.com/DedsecLemon/dsh-obsidian)），
-它适合需要大纲、反链和高亮的人。本插件押的是另外三件事 —— 如果你习惯「一边写笔记、一边和模型讨论」，这三件更重要：
+它适合需要大纲和反链的人。本插件押的是另外三件事 —— 如果你习惯「一边写笔记、一边和模型讨论」，这三件更重要：
 
 1. **渲染细节本身就是功能。** 预览带行号，并保留 Obsidian 的渲染细节：13 种 callout 类型 + 15 个别名、表格对齐、带语言标签的围栏代码、任务列表、setext 标题；frontmatter 不进编辑器，保存时按原文拼回。
 2. **粘贴的截图不会丢。** 编辑时粘贴图片，host 落盘为 Obsidian 原生引用 `![[Pasted image …]]`；以后迁移附件目录，全库笔记里的引用会一并改写。
@@ -94,7 +94,7 @@ dsh plugin --profile web add "$(pwd)"            # PowerShell 用 "$PWD"
 ## 功能
 
 - **Vault 侧边栏**：按需加载的目录树；单击打开笔记，新建 / 重命名 / 删除笔记与文件夹，按标题**和正文**搜索，显示笔记数徽标。
-- **带行号的 Obsidian 预览**：一行源码对应一行渲染并带行号。真表格（支持 `:---` / `:---:` / `---:` 对齐）、带语言标签的围栏代码、嵌套列表与任务列表、`#`～`######` 标题、setext 标题、分隔线、可点击的 `[[双链]]`（含别名与 `#章节`）。
+- **带行号的 Obsidian 预览**：一行源码对应一行渲染并带行号。真表格（支持 `:---` / `:---:` / `---:` 对齐）、带语言标签的围栏代码、嵌套列表与任务列表、`#`～`######` 标题、setext 标题、分隔线、可点击的 `[[双链]]`（含别名与 `#章节`）；行内也支持 `==高亮==`、`~~删除线~~`、反斜杠转义、隐藏的 `%%注释%%`，以及 `<https://…>` / 裸 URL 自动成链。
 - **Callout**：`> [!type] 标题` 按类型渲染颜色、图标与徽标。13 种规范类型（`note`、`abstract`、`info`、`todo`、`tip`、`success`、`question`、`warning`、`failure`、`danger`、`bug`、`example`、`quote`）+ 15 个 Obsidian 别名（`summary`、`tldr`、`hint`、`important`、`check`、`done`、`help`、`faq`、`caution`、`attention`、`fail`、`missing`、`error`、`cite`、`none`）。
 - **编辑与保存**：带行号的源码编辑器，点 `保存` 或按 <kbd>Ctrl/Cmd+S</kbd>。YAML frontmatter 不进编辑器，保存时原样拼回；外部对 YAML 的改动不会被覆盖。
 - **粘贴截图**：编辑时 <kbd>Ctrl/Cmd+V</kbd> 把剪贴板图片写入附件目录，并在光标处插入 Obsidian 原生写法 `![[Pasted image <时间戳>.png]]`（单张上限 20 MB），写进 `.md` 的内容可被真实 Obsidian 识别。
@@ -118,7 +118,7 @@ dsh plugin --profile web add "$(pwd)"            # PowerShell 用 "$PWD"
 | 会话与工作区整理 | ✅ | — |
 | 反链 | ❌ | ✅ |
 | 大纲面板 | ❌ | ✅ |
-| `==高亮==` | ❌ | ✅ |
+| `==高亮==` | ✅ | ✅ |
 
 比的不是「功能多少」，而是取舍：需要大纲和反链，用另一个插件（或真 Obsidian）；想要忠实的 Obsidian 阅读/编辑体验、并顺手把笔记递进对话，这个插件就是为此写的。
 
@@ -167,7 +167,7 @@ dsh plugin --profile web add "$(pwd)"            # PowerShell 用 "$PWD"
 - **DSH：** 已对照 **0.2.1-rc.5** 验证（Web UI、桌面版外壳）。composer 集成面向 DSH 0.2 的 Lexical 输入框，并保留 0.1.x textarea 的降级路径。
 - **Node.js：** `^22.19 || >=24`（仅从源码运行 host 时需要）。
 - **系统：** 路径按平台分隔符处理，会话路径基于 `$DSH_HOME`。上面的截图在 macOS 上录制。
-- **不渲染（保持原文显示）**：数学公式、mermaid、脚注、删除线/高亮、标签、裸 HTML、笔记 transclusion、音频/PDF 嵌入、块引用 `^id`、callout 折叠/未知类型/嵌套，以及部分行内强调边界（`***粗斜体***`、嵌套强调、`_` 相邻文本）。
+- **不渲染（保持原文显示）**：数学公式、mermaid、脚注、标签、裸 HTML、笔记 transclusion、音频/PDF 嵌入、块引用 `^id`、callout 折叠/未知类型/嵌套，以及部分行内强调边界（`***粗斜体***`、嵌套强调、`_` 相邻文本）。
 
 ## 开发
 
