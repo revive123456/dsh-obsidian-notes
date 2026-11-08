@@ -139,6 +139,10 @@
     graphRestartHint: "当前 DSH 进程里还是旧版 host（缺少 /obsidian/graph 路由）。完全退出 DSH（Cmd+Q）再打开，然后点「重试」。",
     graphErrorTitle: "关系图谱加载失败",
     graphBuilding: "正在从笔记构建图谱（{done}/{total}）…",
+    graphFocus: "聚焦当前笔记",
+    graphFocusHint: "一键切到以当前打开笔记为中心的局部图谱",
+    graphDepth: "跳数",
+    graphDepthHint: "局部图谱跳数，1–5 跳（与 Obsidian 局部图谱的 depth 范围一致）",
     graphRetry: "重试",
     graphDetails: "详细信息",
     graphDetailsHide: "收起详细信息",
@@ -306,6 +310,10 @@
     graphRestartHint: "The running DSH host still predates the /obsidian/graph route. Quit DSH completely (Cmd+Q), reopen it, then press Retry.",
     graphErrorTitle: "The graph view failed to load",
     graphBuilding: "Building the graph from notes ({done}/{total})…",
+    graphFocus: "Focus current note",
+    graphFocusHint: "Switch to the local graph centred on the note that is open",
+    graphDepth: "Depth",
+    graphDepthHint: "Local graph depth, 1–5 hops (same range as Obsidian's local graph depth)",
     graphRetry: "Retry",
     graphDetails: "Details",
     graphDetailsHide: "Hide details",
@@ -360,6 +368,7 @@
   const LS_NOTES_OPEN = "dsh-obsidian:notesOpen";
   const LS_DOCK_WIDTH = "dsh-obsidian:dockWidth";
   const LS_GRAPH_GEOMETRY = "dsh-obsidian:graphGeometry";
+  const LS_LOCAL_DEPTH = "dsh-obsidian:localDepth";
 
   function readNotesOpen() {
     try {
@@ -851,6 +860,9 @@
     `.dsh-obs-graph-stats{font-size:11px;color:var(--dsw-alias-label-tertiary)}`,
     `.dsh-obs-graph-modes{display:flex;gap:4px;margin-left:auto}`,
     `.dsh-obs-graph-modes button[disabled]{opacity:.45;cursor:not-allowed}`,
+    `.dsh-obs-graph-depth{display:inline-flex;align-items:center;gap:2px;margin-left:6px;padding-left:8px;border-left:1px solid var(--dsw-alias-border-l2)}`,
+    `.dsh-obs-graph-depth-label{font-size:11px;color:var(--dsw-alias-label-tertiary);margin-right:2px}`,
+    `.dsh-obs-graph-depth button{min-width:20px;padding:0 4px}`,
     `.dsh-obs-graph-canvas{position:relative;flex:1;min-height:0;overflow:hidden;cursor:grab;user-select:none;-webkit-user-select:none}`,
     `.dsh-obs-graph-svg{display:block;width:100%;height:100%}`,
     `.dsh-obs-graph-edge{stroke:var(--dsw-alias-border-l2);stroke-width:1;opacity:.55}`,
@@ -2716,6 +2728,14 @@
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(true);
     const [mode, setMode] = useState("global");
+    // 局部图谱跳数：与 Obsidian 局部图谱的 depth 滑杆对齐（范围 1–5，默认 1）
+    const [localDepth, setLocalDepth] = useState(() => {
+      try {
+        const v = parseInt(localStorage.getItem(LS_LOCAL_DEPTH) ?? "", 10);
+        if (Number.isFinite(v) && v >= 1 && v <= 5) return v;
+      } catch { /* ignore */ }
+      return 1;
+    });
     const [seed, setSeed] = useState(1);
     const [hovered, setHovered] = useState(null);
     const [reloadKey, setReloadKey] = useState(0);
@@ -2817,6 +2837,10 @@
       try { localStorage.setItem(LS_GRAPH_GEOMETRY, JSON.stringify(geometry)); } catch { /* ignore */ }
     }, [geometry]);
 
+    useEffect(() => {
+      try { localStorage.setItem(LS_LOCAL_DEPTH, String(localDepth)); } catch { /* ignore */ }
+    }, [localDepth]);
+
     // 拖动标题栏移动面板（按钮上不触发）
     const beginPanelDrag = useCallback((e) => {
       if (e.target && e.target.closest && e.target.closest("button")) return;
@@ -2871,11 +2895,11 @@
     const shown = useMemo(() => {
       if (data === null) return { nodes: [], edges: [] };
       if (mode === "local" && localAvailable) {
-        const sub = graphModule.localSubgraph(data, focusId, 2);
+        const sub = graphModule.localSubgraph(data, focusId, localDepth);
         return { nodes: sub.nodes, edges: sub.edges };
       }
       return { nodes: data.nodes, edges: data.edges };
-    }, [data, mode, localAvailable, focusId]);
+    }, [data, mode, localAvailable, focusId, localDepth]);
     const plan = useMemo(
       () => graphModule.layoutGraph(shown.nodes, shown.edges, { seed, maxNodes: 420 }),
       [shown, seed],
@@ -2969,6 +2993,22 @@
           title: localAvailable ? t("graphLocalHint") : t("graphNoNote"),
           onClick: () => { if (localAvailable) setMode("local"); },
         }, t("graphLocal")),
+        // 全库模式下的快捷操作：一键切到「以当前笔记为中心」的局部视图
+        mode === "global" && createElement("button", {
+          className: "dsh-obs-mini",
+          disabled: !localAvailable,
+          title: localAvailable ? t("graphFocusHint") : t("graphNoNote"),
+          onClick: () => { if (localAvailable) setMode("local"); },
+        }, `🎯 ${t("graphFocus")}`),
+        // 局部模式：跳数（与 Obsidian 局部图谱 depth 滑杆同范围 1–5）
+        mode === "local" && createElement("span", { className: "dsh-obs-graph-depth", title: t("graphDepthHint") },
+          createElement("span", { className: "dsh-obs-graph-depth-label" }, t("graphDepth")),
+          [1, 2, 3, 4, 5].map((depth) => createElement("button", {
+            key: depth,
+            className: `dsh-obs-mini${localDepth === depth ? " dsh-obs-on" : ""}`,
+            onClick: () => setLocalDepth(depth),
+          }, String(depth))),
+        ),
       ),
       createElement("button", { className: "dsh-obs-mini", title: t("graphRerun"), onClick: () => setSeed((v) => v + 1) }, "↻"),
       createElement("button", { className: "dsh-obs-mini", title: t("graphRefresh"), onClick: () => setReloadKey((v) => v + 1) }, "⟳"),

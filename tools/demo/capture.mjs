@@ -727,6 +727,15 @@ async function graphShot(page) {
   })()`);
   if (!opened) throw new Error("graph entry row not found");
   await page.waitFor(`!!document.querySelector('.dsh-obs-graph')`, { timeout: 15000, label: "graph panel" });
+  if (process.env.GRAPH_LOCAL === "1") {
+    await sleep(1200);
+    await page.evaluate(`(() => {
+      const btn = [...document.querySelectorAll('.dsh-obs-graph-modes button')].find((b) => /Local|局部/.test(b.textContent || ""));
+      if (btn) btn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+      return true;
+    })()`);
+    await sleep(1800);
+  }
   await sleep(stale ? 1400 : 2600);
   const shot = join(DEMO_DIR, stale ? "graph-error.png" : "graph-panel.png");
   await page.screenshotFile(shot, { format: "png", scale: 1 });

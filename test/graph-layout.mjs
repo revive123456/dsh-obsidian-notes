@@ -92,6 +92,18 @@ const edges = [
     JSON.stringify(graphModule.extractTags("正文 #gamma `#notatag` \n```\n#infence\n```", { tags: "[alpha, beta]" })));
 }
 
+// ── 局部跳数（与 Obsidian local graph depth 1–5 对齐）────────────────────────
+{
+  const chain = ["A", "B", "C", "D", "E", "F"].map((name) => ({ id: `note:${name}`, kind: "note", label: name }));
+  const chainEdges = [0, 1, 2, 3, 4].map((i) => ({ source: `note:${"ABCDEF"[i]}`, target: `note:${"ABCDEF"[i + 1]}` }));
+  const graph = { nodes: chain, edges: chainEdges };
+  const size = (depth) => graphModule.localSubgraph(graph, "note:A", depth).nodes.length;
+  check("局部跳数：1 跳 = 中心 + 直接邻居", size(1) === 2, String(size(1)));
+  check("局部跳数：2 跳", size(2) === 3, String(size(2)));
+  check("局部跳数：3 跳", size(3) === 4, String(size(3)));
+  check("局部跳数：5 跳覆盖整条链", size(5) === 6, String(size(5)));
+}
+
 const failed = checks.filter((c) => !c.cond);
 if (failed.length > 0) {
   console.error(`\n${failed.length} 条图谱布局断言失败：${failed.map((c) => c.name).join(" | ")}`);

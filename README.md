@@ -136,8 +136,10 @@ The default vault is `$DSH_WORKSPACE/obsidian_vault`, falling back to
   and `#tags` (no graph file, no export step: it is computed from your Markdown on
   the fly, like Obsidian's own graph). A vault-level entry above the note tree
   opens it as its own view; scroll to zoom, drag to pan, hover to highlight
-  neighbours, click a note to open it in the dock. Switch to **Local** for the
-  2-hop neighbourhood of the note that is currently open.
+  neighbours, click a note to open it in the dock. **Local** shows the
+  neighbourhood of the note that is currently open; the depth is adjustable
+  from 1 to 5 hops (same range as Obsidian's local graph depth slider, default
+  1), and **Focus current note** jumps from the vault view straight to it.
 - **Mind map view** — toggle the preview into a horizontal mind map built from the
   note's headings and list items. Scroll to zoom, drag to pan; select a node to
   jump to its source line, or insert that whole branch (node + descendants) into
