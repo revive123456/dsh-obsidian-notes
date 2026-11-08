@@ -36,6 +36,10 @@ DSH 生态里已经有一个 Obsidian 方向的插件
 | --- | --- |
 | ![带列对齐的表格与 TypeScript 代码块](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-markdown.png) | ![带行号的编辑器与保存按钮](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-editing.png) |
 
+| 由标题 + 列表生成的思维导图 | 全库关系图谱（笔记、双链、标签） |
+| --- | --- |
+| ![由笔记标题与列表生成的思维导图](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-mindmap.png) | ![全库关系图谱：圆圈是笔记、方块是标签、线是双链/标签关系](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-graph.png) |
+
 ![选中一段文字提问：路径、行号与原文会随问题一起注入](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-ask.png)
 
 ## 安装
@@ -54,7 +58,7 @@ DSH 生态里已经有一个 Obsidian 方向的插件
 2. 搜索 **`dsh-obsidian-notes`** 并安装；
 3. 重启 DeepSeek Harness。
 
-> 这条路径要求 npm 上已有该包（当前版本 **0.5.2**）。搜不到时用下面两种方式。
+> 这条路径要求 npm 上已有该包（当前版本 **0.6.0**）。搜不到时用下面两种方式。
 
 ### 2. CLI（npm 发布后）
 

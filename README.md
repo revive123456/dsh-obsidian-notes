@@ -47,6 +47,10 @@ different set of things — the three that matter if you write next to a chat:
 | --- | --- |
 | ![Table with column alignment and a TypeScript code fence](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-markdown.png) | ![Editor with line numbers and Save button](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-editing.png) |
 
+| Mind map from headings + lists | Vault-wide graph view (notes, links, tags) |
+| --- | --- |
+| ![Mind map view built from the note headings and list items](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-mindmap.png) | ![Relation graph of the whole vault: notes as circles, tags as squares, links as lines](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-graph.png) |
+
 ![Select a passage and ask about it: path, line numbers and quote are sent with the question](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-ask.png)
 
 ## Install
@@ -75,7 +79,7 @@ host-side route.
 2. Search for **`dsh-obsidian-notes`** and install it.
 3. Restart DeepSeek Harness.
 
-> This path requires the package to be published on npm (current release **0.5.2**).
+> This path requires the package to be published on npm (current release **0.6.0**).
 > If search shows nothing, use one of the two paths below.
 
 ### 2. CLI (after the npm release)
