@@ -865,6 +865,7 @@
     `.dsh-obs-graph-tag text{fill:var(--dsw-alias-label-secondary)}`,
     `.dsh-obs-graph-hint{padding:6px 14px;border-top:1px solid var(--dsw-alias-border-l2);font-size:11px;color:var(--dsw-alias-label-tertiary)}`,
     `.dsh-obs-graph-empty{display:flex;align-items:center;justify-content:center;flex:1;padding:32px;color:var(--dsw-alias-label-tertiary);text-align:center}`,
+    `.dsh-obs-graph-error, .dsh-obs-graph-empty{flex:1;min-height:0}`,
     // ── Obsidian callout（`> [!type] 标题`）配色：类型在根节点上带 data-callout ──
     `[data-callout="note"]{--dsh-obs-callout-color:#448aff}`,
     `[data-callout="abstract"]{--dsh-obs-callout-color:#00b8d4}`,
@@ -2942,6 +2943,17 @@
       className: "dsh-obs-graph-head",
       title: t("graphMove"),
       onMouseDown: beginPanelDrag,
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        flexWrap: "wrap",
+        padding: "10px 14px",
+        borderBottom: "1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.12))",
+        cursor: "move",
+        userSelect: "none",
+        flex: "none",
+      },
     },
       createElement("div", { className: "dsh-obs-graph-title" }, `🕸 ${t("graph")}`),
       data !== null && createElement("div", { className: "dsh-obs-graph-stats" },
@@ -2990,6 +3002,7 @@
       body = createElement("div", {
         ref: wrapRef,
         className: "dsh-obs-graph-canvas",
+        style: { position: "relative", flex: 1, minHeight: 0, overflow: "hidden", cursor: "grab" },
         onWheel,
         onMouseDown,
         onMouseMove,
@@ -3047,9 +3060,28 @@
     }
 
     const truncatedNote = plan.truncated ? t("graphTruncated", { n: plan.nodes.length }) : t("graphHint");
-    const style = geometry.x === null
-      ? { right: 24, top: geometry.y, width: geometry.width, height: geometry.height }
-      : { left: geometry.x, top: geometry.y, width: geometry.width, height: geometry.height };
+    // 关键布局全部走内联样式：即使插件的 <style> 注入失败（旧 bundle / 特殊宿主），
+    // 面板也不会变成左上角裸文本；z-index 也内联，避免被宿主容器压住。
+    const defaultX = typeof window !== "undefined"
+      ? Math.max(16, Math.round((window.innerWidth - geometry.width) / 2))
+      : 80;
+    const style = {
+      position: "fixed",
+      left: geometry.x === null ? defaultX : geometry.x,
+      top: geometry.y,
+      width: geometry.width,
+      height: geometry.height,
+      zIndex: 2147483000,
+      display: "flex",
+      flexDirection: "column",
+      boxSizing: "border-box",
+      overflow: "hidden",
+      background: "var(--dsw-alias-bg-overlay, #1f2328)",
+      color: "var(--dsw-alias-label-primary, #e6e6e6)",
+      border: "1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.15))",
+      borderRadius: 14,
+      boxShadow: "0 24px 64px rgba(0,0,0,.45)",
+    };
     return createElement("div", {
       className: "dsh-obs-graph",
       role: "dialog",
@@ -3058,7 +3090,16 @@
     },
       head,
       body,
-      createElement("div", { className: "dsh-obs-graph-hint" }, truncatedNote),
+      createElement("div", {
+        className: "dsh-obs-graph-hint",
+        style: {
+          flex: "none",
+          padding: "6px 14px",
+          borderTop: "1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.12))",
+          fontSize: 11,
+          color: "var(--dsw-alias-label-tertiary, #9aa0aa)",
+        },
+      }, truncatedNote),
       createElement("div", { className: "dsh-obs-graph-resize", title: t("resize"), onMouseDown: beginPanelResize }),
     );
   }
