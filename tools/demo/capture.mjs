@@ -14,6 +14,7 @@
  * Outputs:
  *   shots  → docs/assets/*.png (2x device scale, clipped where useful)
  *   record → tools/demo/out/frames/frame-00001.jpg … + manifest.json
+ *   mapdemo → frames of the mind-map flow (B1) for a GIF
  *
  * Env:
  *   CHROME       Chrome binary (macOS default below)
@@ -684,6 +685,166 @@ async function chatTest(page) {
   console.log(JSON.stringify({ composed: composed.slice(0, 500), gotReply, questionVisible, consoleEvents, transcriptTail: transcript.slice(-700), shot }, null, 2));
 }
 
+
+/**
+ * 思维导图（B1）演示录制：行内语法笔记 → 思维导图视图 → 平移/缩放 → 选节点 →
+ * 跳到源码行 → 回导图 → 把分支插入对话。产出带时间戳的 frames + manifest，
+ * 交给 make-gif.mjs 合成 GIF。
+ */
+async function mapDemo(page) {
+  await prepare(page);
+  rmSync(FRAMES_DIR, { recursive: true, force: true });
+  mkdirSync(FRAMES_DIR, { recursive: true });
+  const frames = [];
+  const started0 = Date.now();
+  const mark = (label) => console.log(`  [${((Date.now() - started0) / 1000).toFixed(1)}s] ${label}`);
+  let running = true;
+  const targetFrameMs = Number(process.env.FRAME_MS || 90);
+
+  const mouse = (type, x, y, extra = {}) => page.cdp.send("Input.dispatchMouseEvent", {
+    type, x, y, button: "left", buttons: type === "mouseReleased" ? 0 : 1, clickCount: 1, ...extra,
+  });
+  const drag = async (fromX, fromY, toX, toY, steps = 14) => {
+    await mouse("mousePressed", fromX, fromY);
+    for (let i = 1; i <= steps; i += 1) {
+      await mouse("mouseMoved", fromX + ((toX - fromX) * i) / steps, fromY + ((toY - fromY) * i) / steps);
+      await sleep(16);
+    }
+    await mouse("mouseReleased", toX, toY);
+  };
+  const centerOfExpr = async (expr) => page.evaluate(`(() => {
+    const el = ${expr};
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+  })()`);
+  const clickButtonByText = async (scope, pattern) => page.evaluate(`(() => {
+    const re = ${pattern};
+    const btn = [...document.querySelectorAll(${JSON.stringify(scope)})].find((b) => re.test(b.textContent || "") || re.test(b.getAttribute("title") || ""));
+    if (!btn) return false;
+    btn.click();
+    return true;
+  })()`);
+
+  // 节点可能在平移/缩放后跑出可视区：先算出偏差把图拖回来，再点击
+  const ensureVisible = async (expr) => {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const geo = await page.evaluate(`(() => {
+        const el = ${expr};
+        const map = document.querySelector('.dsh-obs-map');
+        if (!el || !map) return null;
+        const r = el.getBoundingClientRect();
+        const m = map.getBoundingClientRect();
+        return { nx: r.left + r.width / 2, ny: r.top + r.height / 2, mx: m.left + m.width / 2, my: m.top + m.height / 2, mw: m.width, mh: m.height };
+      })()`);
+      if (!geo) return false;
+      const inX = Math.abs(geo.nx - geo.mx) < geo.mw / 2 - 60;
+      const inY = Math.abs(geo.ny - geo.my) < geo.mh / 2 - 50;
+      if (inX && inY) return true;
+      await drag(geo.mx, geo.my, geo.mx + (geo.mx - geo.nx) * 0.7, geo.my + (geo.my - geo.ny) * 0.7, 10);
+      await sleep(260);
+    }
+    return true;
+  };
+  const clickNode = async (text) => {
+    const expr = `[...document.querySelectorAll('.dsh-obs-map-node')].find((n) => (n.textContent || "").includes(${JSON.stringify(text)}))`;
+    await ensureVisible(expr);
+    return page.evaluate(`(() => {
+      const el = ${expr};
+      if (!el) return false;
+      el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+      return true;
+    })()`);
+  };
+
+  await sleep(500);
+
+  // 1) 笔记面板 → Projects/Syntax showcase（行内语法展示）
+  await openNotes(page);
+  await sleep(500);
+  await expandFolder(page, "Projects", "Syntax showcase");
+  await sleep(300);
+  await openNote(page, "Syntax showcase");
+  mark("syntax note open");
+  await sleep(900);
+
+  // 从「已经打开语法笔记」开始录帧，GIF 第一秒就有内容
+  const loop = (async () => {
+    while (running) {
+      const started = Date.now();
+      try {
+        const data = await page.screenshotBase64({ format: "jpeg", quality: 82 });
+        const file = join(FRAMES_DIR, `frame-${String(frames.length + 1).padStart(5, "0")}.jpg`);
+        writeFileSync(file, Buffer.from(data, "base64"));
+        frames.push({ file, t: Date.now() - started0 });
+      } catch { /* 页面忙时丢一帧 */ }
+      const spent = Date.now() - started;
+      if (spent < targetFrameMs) await sleep(targetFrameMs - spent);
+    }
+  })();
+  await sleep(2200);
+
+  // 2) 打开思维导图示范笔记
+  await openNote(page, "Mind map demo");
+  mark("mind map note open");
+  await sleep(1200);
+
+  // 3) 切到思维导图视图
+  await clickButtonByText(".dsh-obs-dock-head button", "/思维导图|Mind map/i");
+  await page.waitFor(`!!document.querySelector('.dsh-obs-map-svg')`, { timeout: 8000, label: "mind map view" });
+  mark("mind map view");
+  await sleep(1600);
+
+  // 4) 拖动平移
+  const mapRect = await page.evaluate(`(() => { const r = document.querySelector('.dsh-obs-map').getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })()`);
+  const cx = Math.round(mapRect.x + mapRect.w / 2);
+  const cy = Math.round(mapRect.y + mapRect.h / 2);
+  await drag(cx + 70, cy + 30, cx - 40, cy - 10);
+  mark("pan");
+  await sleep(700);
+
+  // 5) 滚轮放大两档
+  for (let i = 0; i < 1; i += 1) {
+    await page.cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", x: cx, y: cy, deltaX: 0, deltaY: -120 });
+    await sleep(320);
+  }
+  mark("zoom");
+  await sleep(900);
+
+  // 6) 单击「通过标准」节点 → 操作条
+  await clickNode("通过标准");
+  await page.waitFor(`!!document.querySelector('.dsh-obs-map-actions')`, { timeout: 6000, label: "map actions" });
+  mark("node selected");
+  await sleep(1200);
+
+  // 7) 跳到源码行
+  await clickButtonByText(".dsh-obs-map-actions button", "/跳到|Jump/i");
+  mark("jump to line");
+  await sleep(1900);
+
+  // 8) 回导图，把分支插入对话
+  await clickButtonByText(".dsh-obs-dock-head button", "/思维导图|Mind map/i");
+  await page.waitFor(`!!document.querySelector('.dsh-obs-map-svg')`, { timeout: 6000, label: "mind map again" });
+  await sleep(700);
+  await clickNode("通过标准");
+  await page.waitFor(`!!document.querySelector('.dsh-obs-map-actions')`, { timeout: 6000, label: "map actions again" });
+  await sleep(600);
+  await clickButtonByText(".dsh-obs-map-actions button", "/插入|Insert/i");
+  mark("branch inserted");
+  await sleep(1500);
+
+  // 关掉笔记 Dock，露出已经填好的对话输入框（分支 prompt 在输入框里）
+  await clickButtonByText(".dsh-obs-dock-head button", "/关闭|Close|✕/i");
+  mark("dock closed");
+  await sleep(2600);
+
+  running = false;
+  await loop;
+  const manifest = { width: VW, height: VH, capturedAt: new Date().toISOString(), frames };
+  writeFileSync(join(FRAMES_DIR, "manifest.json"), JSON.stringify(manifest));
+  console.log(`recorded ${frames.length} frames in ${((Date.now() - started0) / 1000).toFixed(1)}s → ${FRAMES_DIR}`);
+}
+
 /**
  * Dump the Workspace sidebar's rendered session order per group.
  *
@@ -890,6 +1051,7 @@ async function main() {
     else if (mode === "probe") await probe(page);
     else if (mode === "dom") await domDump(page);
     else if (mode === "sessions") await sessionsDump(page);
+    else if (mode === "mapdemo") await mapDemo(page);
     else if (mode === "chattest") await chatTest(page);
     else if (mode === "selftest") await selftest(page);
     else throw new Error(`unknown mode: ${mode}`);

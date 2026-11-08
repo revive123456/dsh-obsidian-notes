@@ -122,6 +122,10 @@ The default vault is `$DSH_WORKSPACE/obsidian_vault`, falling back to
   clickable `[[wikilinks]]` (aliases and `#sections` included). Inline Obsidian
   styles render too: `==highlight==`, `~~strikethrough~~`, backslash escapes,
   hidden `%%comments%%`, and `<https://…>` / bare URLs as links.
+- **Mind map view** — toggle the preview into a horizontal mind map built from the
+  note's headings and list items. Scroll to zoom, drag to pan; select a node to
+  jump to its source line, or insert that whole branch (node + descendants) into
+  the chat as context. Rendering only — the Markdown file is untouched.
 - **Callouts** — `> [!type] title` blocks render with type colours, icons and
   badges. 13 canonical types (`note`, `abstract`, `info`, `todo`, `tip`,
   `success`, `question`, `warning`, `failure`, `danger`, `bug`, `example`,
@@ -169,6 +173,7 @@ the app's light and dark themes.
 | Session & workspace housekeeping | ✅ | — |
 | Backlinks | ❌ | ✅ |
 | Outline pane | ❌ | ✅ |
+| Mind map view (headings + lists) | ✅ | — |
 | `==highlight==` | ✅ | ✅ |
 
 The point is not "more features" — it is a different trade-off. If you need

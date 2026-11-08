@@ -874,6 +874,8 @@ const renderMarkdownModule = (() => {
       createElement("div", {
         key: `n${keyIdx++}`,
         className: `dsh-obs-md-row${rowClass ? ` ${rowClass}` : ""}`,
+        // 源码行号（1 起）：思维导图「点节点跳到源码行」用它定位，测试不依赖
+        "data-line": num,
         ...(extraProps ?? {}),
       },
         createElement("span", { className: "dsh-obs-md-ln" }, String(num)),

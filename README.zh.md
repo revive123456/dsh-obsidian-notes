@@ -95,6 +95,7 @@ dsh plugin --profile web add "$(pwd)"            # PowerShell 用 "$PWD"
 
 - **Vault 侧边栏**：按需加载的目录树；单击打开笔记，新建 / 重命名 / 删除笔记与文件夹，按标题**和正文**搜索，显示笔记数徽标。
 - **带行号的 Obsidian 预览**：一行源码对应一行渲染并带行号。真表格（支持 `:---` / `:---:` / `---:` 对齐）、带语言标签的围栏代码、嵌套列表与任务列表、`#`～`######` 标题、setext 标题、分隔线、可点击的 `[[双链]]`（含别名与 `#章节`）；行内也支持 `==高亮==`、`~~删除线~~`、反斜杠转义、隐藏的 `%%注释%%`，以及 `<https://…>` / 裸 URL 自动成链。
+- **思维导图视图**：把预览切换成由标题 + 列表生成的横向思维导图。滚轮缩放、拖动平移；选中节点可跳到对应源码行，或把「该分支（节点 + 全部后代）」作为上下文插入对话。纯渲染，不改动 Markdown 文件。
 - **Callout**：`> [!type] 标题` 按类型渲染颜色、图标与徽标。13 种规范类型（`note`、`abstract`、`info`、`todo`、`tip`、`success`、`question`、`warning`、`failure`、`danger`、`bug`、`example`、`quote`）+ 15 个 Obsidian 别名（`summary`、`tldr`、`hint`、`important`、`check`、`done`、`help`、`faq`、`caution`、`attention`、`fail`、`missing`、`error`、`cite`、`none`）。
 - **编辑与保存**：带行号的源码编辑器，点 `保存` 或按 <kbd>Ctrl/Cmd+S</kbd>。YAML frontmatter 不进编辑器，保存时原样拼回；外部对 YAML 的改动不会被覆盖。
 - **粘贴截图**：编辑时 <kbd>Ctrl/Cmd+V</kbd> 把剪贴板图片写入附件目录，并在光标处插入 Obsidian 原生写法 `![[Pasted image <时间戳>.png]]`（单张上限 20 MB），写进 `.md` 的内容可被真实 Obsidian 识别。
@@ -118,6 +119,7 @@ dsh plugin --profile web add "$(pwd)"            # PowerShell 用 "$PWD"
 | 会话与工作区整理 | ✅ | — |
 | 反链 | ❌ | ✅ |
 | 大纲面板 | ❌ | ✅ |
+| 思维导图视图（标题 + 列表） | ✅ | — |
 | `==高亮==` | ✅ | ✅ |
 
 比的不是「功能多少」，而是取舍：需要大纲和反链，用另一个插件（或真 Obsidian）；想要忠实的 Obsidian 阅读/编辑体验、并顺手把笔记递进对话，这个插件就是为此写的。

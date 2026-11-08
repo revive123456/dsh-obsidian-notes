@@ -112,6 +112,13 @@
     cancel: "取消",
     discard: "放弃未保存的修改？",
     cite: "引用到对话",
+    mindMap: "思维导图",
+    preview: "预览",
+    mapEmpty: "这篇笔记还没有标题或列表，画不出思维导图",
+    mapHint: "滚轮缩放 · 拖动平移 · 单击节点选中 · 双击跳到源码行",
+    mapJump: "跳到源码行",
+    mapAsk: "把分支插入对话",
+    branchCited: "已把分支插入对话（{n} 行）",
     cited: "已引用到对话",
     copied: "已复制引用，可粘贴到输入框",
     noInput: "未找到对话输入框，引用已复制到剪贴板",
@@ -249,6 +256,13 @@
     cancel: "Cancel",
     discard: "Discard unsaved changes?",
     cite: "Cite to chat",
+    mindMap: "Mind map",
+    preview: "Preview",
+    mapEmpty: "No headings or list items yet — nothing to draw",
+    mapHint: "Scroll to zoom · drag to pan · click a node to select · double-click to jump to its line",
+    mapJump: "Jump to line",
+    mapAsk: "Insert branch into chat",
+    branchCited: "Branch inserted into the chat ({n} lines)",
     cited: "Cited to chat",
     copied: "Reference copied — paste it into the input",
     noInput: "No chat input found — reference copied to clipboard",
@@ -755,6 +769,24 @@
     `.dsh-obs-md del{opacity:.62;text-decoration:line-through}`,
     `.dsh-obs-md .dsh-obs-autolink{color:var(--dsw-alias-brand-primary);text-decoration:underline;text-underline-offset:2px;word-break:break-all}`,
     `.dsh-obs-md-row.dsh-obs-md-quote .dsh-obs-md-lc{border-left:3px solid var(--dsw-alias-brand-primary);padding-left:10px;color:var(--dsw-alias-label-secondary)}`,
+    // ── 思维导图视图（B1）──
+    `.dsh-obs-dock-map{overflow:hidden;padding:0}`,
+    `.dsh-obs-map{position:relative;display:block;width:100%;height:100%;min-height:300px;cursor:grab;overflow:hidden;user-select:none;-webkit-user-select:none}`,
+    `.dsh-obs-map-svg{display:block;width:100%;height:100%}`,
+    `.dsh-obs-map-edge{fill:none;stroke:var(--dsw-alias-border-l2);stroke-width:1.5}`,
+    `.dsh-obs-map-node{cursor:pointer}`,
+    `.dsh-obs-map-node rect{fill:var(--dsw-alias-bg-overlay);stroke:var(--dsw-alias-border-l2);stroke-width:1}`,
+    `.dsh-obs-map-heading rect{stroke:var(--dsw-alias-brand-primary)}`,
+    `.dsh-obs-map-root rect{fill:var(--dsw-alias-brand-primary);stroke:var(--dsw-alias-brand-primary)}`,
+    `.dsh-obs-map-root text{fill:#fff;font-weight:600}`,
+    `.dsh-obs-map-node text{font-size:12.5px;fill:var(--dsw-alias-label-primary);pointer-events:none}`,
+    `.dsh-obs-map-sel rect{stroke:var(--dsw-alias-brand-primary);stroke-width:2}`,
+    `.dsh-obs-map-hint{position:absolute;left:10px;bottom:8px;font-size:11px;color:var(--dsw-alias-label-tertiary);pointer-events:none}`,
+    `.dsh-obs-map-actions{position:absolute;right:10px;top:8px;display:flex;align-items:center;gap:6px;padding:4px 6px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-overlay);font-size:12px}`,
+    `.dsh-obs-map-actions .dsh-obs-map-line{color:var(--dsw-alias-label-tertiary);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}`,
+    `.dsh-obs-map-actions button{padding:3px 8px;font-size:12px}`,
+    `.dsh-obs-map-empty{display:flex;align-items:center;justify-content:center;height:100%;min-height:220px;padding:24px;color:var(--dsw-alias-label-tertiary);text-align:center}`,
+    `.dsh-obs-md-row.dsh-obs-md-flash{background:color-mix(in srgb,var(--dsw-alias-brand-primary) 16%,transparent);border-radius:4px}`,
     // ── Obsidian callout（`> [!type] 标题`）配色：类型在根节点上带 data-callout ──
     `[data-callout="note"]{--dsh-obs-callout-color:#448aff}`,
     `[data-callout="abstract"]{--dsh-obs-callout-color:#00b8d4}`,
@@ -2588,11 +2620,150 @@
   }
 
   // ── 右侧笔记 Dock（shell.overlay）──────────────────────────────────────────
+
+  /**
+   * 思维导图视图（B1）：把 note.content 的标题/列表画成横向树。
+   * - 滚轮缩放（以指针为中心）/ 拖动平移；
+   * - 单击节点：选中并显示操作条（跳到源码行 / 把分支插入对话）；
+   * - 双击节点：直接跳到该节点的源码行。
+   */
+  function MindMapView({ note, t, onJumpLine, onAskBranch }) {
+    const tree = useMemo(
+      () => mindMapModule.buildTree(note.content, { title: note.name.replace(/\.md$/i, "") }),
+      [note.content, note.name],
+    );
+    const plan = useMemo(() => mindMapModule.layout(tree), [tree]);
+    const [viewState, setViewState] = useState({ x: 0, y: 14, s: 1 });
+    const [selected, setSelected] = useState(null);
+    const dragRef = useRef(null);
+    const wrapRef = useRef(null);
+    const hasNodes = plan.nodes.length > 1;
+
+    // 初始把整张导图缩放进 Dock 可视区（导图比面板宽，不 fit 只能看到最左一列）
+    useEffect(() => {
+      const el = wrapRef.current;
+      if (!el || !hasNodes) return;
+      const w = el.clientWidth || 480;
+      const h = el.clientHeight || 320;
+      // 横向导图比面板宽：只按高度适配（保持字号可读），横向靠拖动平移
+      const fit = Math.min(1, (h - 28) / plan.height);
+      setViewState({
+        x: 10,
+        y: Math.max(10, (h - plan.height * fit) / 2),
+        s: fit,
+      });
+    }, [plan, hasNodes]);
+
+    // SVG 无自动省略：按估算字宽截断，完整文本放 <title> 悬停显示
+    const fitText = (text, width) => {
+      const maxUnits = Math.max(6, Math.floor((width - 26) / 7.2));
+      let out = "";
+      let units = 0;
+      for (const ch of text) {
+        const u = /[\u2E80-\u9FFF\uF900-\uFAFF\u3000-\u303F\uFF00-\uFFEF]/.test(ch) ? 2 : 1;
+        if (units + u > maxUnits) return `${out}…`;
+        out += ch;
+        units += u;
+      }
+      return out;
+    };
+
+    const onWheel = useCallback((e) => {
+      if (!hasNodes) return;
+      if (e.cancelable !== false && e.preventDefault) e.preventDefault();
+      const rect = e.currentTarget && e.currentTarget.getBoundingClientRect
+        ? e.currentTarget.getBoundingClientRect()
+        : { left: 0, top: 0 };
+      const px = (e.clientX || 0) - rect.left;
+      const py = (e.clientY || 0) - rect.top;
+      setViewState((prev) => {
+        const next = Math.min(2.6, Math.max(0.35, prev.s * (e.deltaY > 0 ? 0.88 : 1.14)));
+        const k = next / prev.s;
+        return { s: next, x: px - (px - prev.x) * k, y: py - (py - prev.y) * k };
+      });
+    }, [hasNodes]);
+
+    const onMouseDown = useCallback((e) => {
+      if (e.button !== undefined && e.button !== 0) return;
+      dragRef.current = { x: e.clientX, y: e.clientY, ox: viewState.x, oy: viewState.y };
+    }, [viewState.x, viewState.y]);
+    const onMouseMove = useCallback((e) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      setViewState((prev) => ({ ...prev, x: drag.ox + (e.clientX - drag.x), y: drag.oy + (e.clientY - drag.y) }));
+    }, []);
+    const endDrag = useCallback(() => { dragRef.current = null; }, []);
+
+    if (!hasNodes) {
+      return createElement("div", { className: "dsh-obs-map-empty" }, t("mapEmpty"));
+    }
+
+    const selectedNode = selected !== null ? plan.byId[selected] : null;
+    return createElement("div", {
+      ref: wrapRef,
+      className: "dsh-obs-map",
+      onWheel,
+      onMouseDown,
+      onMouseMove,
+      onMouseUp: endDrag,
+      onMouseLeave: endDrag,
+    },
+      createElement("svg", { className: "dsh-obs-map-svg" },
+        createElement("g", { transform: `translate(${viewState.x},${viewState.y}) scale(${viewState.s})` },
+          plan.edges.map((edge) => {
+            const a = plan.byId[edge.from];
+            const b = plan.byId[edge.to];
+            if (!a || !b) return null;
+            const x1 = a.x + a.w;
+            const x2 = b.x;
+            const mx = (x1 + x2) / 2;
+            return createElement("path", {
+              key: `${edge.from}-${edge.to}`,
+              className: "dsh-obs-map-edge",
+              d: `M ${x1} ${a.y} C ${mx} ${a.y}, ${mx} ${b.y}, ${x2} ${b.y}`,
+            });
+          }),
+          plan.nodes.map((node) => createElement("g", {
+            key: node.id,
+            className: `dsh-obs-map-node dsh-obs-map-${node.kind}${selected === node.id ? " dsh-obs-map-sel" : ""}`,
+            transform: `translate(${node.x},${node.y - node.h / 2})`,
+            onClick: (e) => {
+              if (e && e.stopPropagation) e.stopPropagation();
+              setSelected(node.id);
+            },
+            onDoubleClick: (e) => {
+              if (e && e.stopPropagation) e.stopPropagation();
+              if (node.line > 0) onJumpLine(node.line);
+            },
+          },
+            createElement("rect", { width: node.w, height: node.h, rx: 9 }),
+            createElement("text", { x: 13, y: node.h / 2 + 5 }, fitText(node.text, node.w)),
+            createElement("title", null, node.text),
+          )),
+        ),
+      ),
+      selectedNode !== null && createElement("div", { className: "dsh-obs-map-actions" },
+        createElement("span", { className: "dsh-obs-map-line" }, `L${selectedNode.line}`),
+        createElement("button", {
+          onClick: () => onJumpLine(selectedNode.line),
+        }, `↩ ${t("mapJump")}`),
+        createElement("button", {
+          className: "dsh-obs-primary",
+          onClick: () => onAskBranch(selectedNode),
+        }, `⤴ ${t("mapAsk")}`),
+      ),
+      createElement("div", { className: "dsh-obs-map-hint" }, t("mapHint")),
+    );
+  }
+
   function Dock({ t, workspaces }) {
     const { openNote, vaultRev } = useShared();
     const [note, setNote] = useState(null);
     const [root, setRoot] = useState("");
     const [editing, setEditing] = useState(false);
+    // 视图：预览（行号）/ 思维导图；编辑态始终是编辑器
+    const [view, setView] = useState("preview");
+    const [jumpLine, setJumpLine] = useState(null);
     const [draft, setDraft] = useState("");
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
@@ -2889,6 +3060,60 @@
       patchShared({ openNote: { rel: found.path, name: found.name } });
     }, [editing, draft, note, t]);
 
+    /** 思维导图 → 预览：跳到源码行并短暂高亮（行元素带 data-line）。 */
+    const jumpToLine = useCallback((line) => {
+      if (!line || line < 1) return;
+      setView("preview");
+      setJumpLine(line);
+    }, []);
+
+    /** 思维导图 → 对话：把「该节点 + 全部后代」的源码区间按选区提问同款 prompt 插入输入框。 */
+    const askBranch = useCallback((node) => {
+      if (!note) return;
+      const span = mindMapModule.branchSpan(note.content, node);
+      const prompt = buildPrompt(
+        t,
+        treeApi.absPath(note.path, root),
+        note.content,
+        { text: span.text, start: span.start, end: span.end, mode: "preview" },
+        "",
+      );
+      if (injectPrompt(prompt)) {
+        showToast(t("branchCited", { n: span.endLine - span.startLine + 1 }));
+        return;
+      }
+      try {
+        if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+          navigator.clipboard.writeText(prompt).then(() => showToast(t("noInput"))).catch(() => showToast(t("citeFail")));
+        } else {
+          showToast(t("citeFail"));
+        }
+      } catch {
+        showToast(t("citeFail"));
+      }
+    }, [note, t, root]);
+
+    // 切笔记时回到预览态（避免上一份笔记的导图/跳转状态残留）
+    useEffect(() => {
+      setView("preview");
+      setJumpLine(null);
+    }, [openNote]);
+
+    // 预览行高亮：跳到行号后滚动到该行并闪一下（1.8s 后恢复）
+    useEffect(() => {
+      if (jumpLine === null || view !== "preview" || !previewRef.current) return undefined;
+      const el = previewRef.current.querySelector(`[data-line="${jumpLine}"]`);
+      if (el) {
+        if (typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "center" });
+        el.classList.add("dsh-obs-md-flash");
+      }
+      const timer = window.setTimeout(() => {
+        if (el) el.classList.remove("dsh-obs-md-flash");
+        setJumpLine(null);
+      }, 1800);
+      return () => window.clearTimeout(timer);
+    }, [jumpLine, view, note, vaultRev]);
+
     const dirty = editing && note !== null && draft !== note.content;
 
     // 编辑态行号（每行一个，对应源码行数；textarea 为 white-space:pre 无折行，行号与文本行一一对齐）
@@ -2912,6 +3137,11 @@
           createElement("span", null, "📝"),
           createElement("span", null, note ? note.name : openNote.name),
         ),
+        !editing && note && createElement("button", {
+          className: view === "map" ? "dsh-obs-on" : undefined,
+          title: view === "map" ? t("preview") : t("mindMap"),
+          onClick: () => setView((prev) => (prev === "map" ? "preview" : "map")),
+        }, view === "map" ? `📄 ${t("preview")}` : `🧠 ${t("mindMap")}`),
         !editing && note && createElement("button", { onClick: () => void cite() }, `⤴ ${t("cite")}`),
         !editing && note && createElement("button", { onClick: () => { setDraft(note.content); setEditing(true); } }, t("edit")),
         editing && createElement("button", {
@@ -2963,8 +3193,17 @@
               },
             }),
           )
-          : createElement("div", { className: "dsh-obs-dock-body" },
-            createElement("div", { ref: previewRef, className: "dsh-obs-md" },
+          : view === "map"
+            ? createElement("div", { className: "dsh-obs-dock-body dsh-obs-dock-map" },
+              createElement(MindMapView, {
+                note,
+                t,
+                onJumpLine: jumpToLine,
+                onAskBranch: askBranch,
+              }),
+            )
+            : createElement("div", { className: "dsh-obs-dock-body" },
+              createElement("div", { ref: previewRef, className: "dsh-obs-md" },
               renderNumbered(note.content, {
                 onWikilink: (target) => void openWikilink(target),
                 onText: () => {},

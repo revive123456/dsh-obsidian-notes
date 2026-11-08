@@ -22,6 +22,7 @@ if (typeof moduleId !== "string" || moduleId.length === 0) {
 }
 
 const markdown = readFileSync(join(root, "src", "markdown.js"), "utf8");
+const mindmap = readFileSync(join(root, "src", "mindmap.js"), "utf8");
 const client = readFileSync(join(root, "src", "client.js"), "utf8");
 
 const lines = [
@@ -34,7 +35,7 @@ const lines = [
   `\t\tvoid require("react/jsx-runtime");`,
 ];
 
-for (const body of [markdown, client]) {
+for (const body of [markdown, mindmap, client]) {
   for (const line of body.split("\n")) {
     lines.push(line === "" ? "" : `\t\t${line}`);
   }
