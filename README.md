@@ -14,28 +14,28 @@ English | [中文](https://github.com/revive123456/dsh-obsidian-notes/blob/main/
 
 ---
 
-## Why this one
+## What it does
 
-There is already an Obsidian-ish plugin in the DSH ecosystem
-([DedsecLemon/dsh-obsidian](https://github.com/DedsecLemon/dsh-obsidian)), and it
-is a good fit if you want an outline pane and backlinks. This plugin bet on a
-different set of things — the three that matter if you write next to a chat:
+A local-first Markdown notes panel that sits in the DSH sidebar and hands notes
+to the chat without copy-paste:
 
-1. **Rendering fidelity is the feature.** The preview is line-numbered and keeps
-   the Obsidian details other viewers flatten: all 13 callout types plus 15
-   aliases, table alignment, fenced code with info strings, task lists, setext
-   headings, and frontmatter that round-trips byte-for-byte on save.
-2. **Pasted screenshots stay attached.** Paste an image while editing and the
-   host writes an Obsidian-native `![[Pasted image …]]` embed. Move the
-   attachment folder later and every embed in the vault is rewritten to match.
-3. **The note can talk to the chat.** Cite a whole note as an `@path` mention, or
-   select a passage and ask about it — the prompt carries the absolute path, the
-   line range and the quoted text.
+1. **Your notes stay beside the conversation.** Point it at a folder of Markdown
+   files and you get the vault tree, a line-numbered Obsidian-flavoured preview,
+   edit/save, and search across titles and bodies — no import, no sync, no cloud.
+2. **The handoff is the feature.** Cite a whole note as an `@path` mention, or
+   select a passage and press **Ask** — the prompt in the composer carries the
+   absolute path, the line range and the quoted text, so the model can refer to
+   exactly what you read.
+3. **Screenshots become part of the vault.** Paste an image while editing and it
+   is saved into the attachment folder as an Obsidian-native
+   `![[Pasted image …]]` embed; moving that folder later rewrites the embeds.
+4. **Two ways to see the shape of a vault.** Turn a note into a **mind map**
+   built from its headings and list items, or open the **relation graph**
+   computed from `[[links]]` and `#tags` — vault-wide, or locally around the open
+   note with 1–5 hops.
 
-> **What it does not do:** no backlinks, no outline pane, no graph view, and no
-> math/mermaid/transclusion rendering. If those are your priority, use a real
-> Obsidian vault (or the plugin above) instead. The [comparison](#comparison) is
-> spelled out below.
+Everything runs on your machine: the plugin reads and writes only the folder you
+choose, and the client talks to the host over its own loopback routes.
 
 ## Screenshots
 
@@ -125,6 +125,18 @@ configured, choose one:
 The default vault is `$DSH_WORKSPACE/obsidian_vault`, falling back to
 `./obsidian_vault` under the directory you started `dsh web` from.
 
+### Typical workflow
+
+1. Open **📚 Notes** and pick a vault (above).
+2. Click a note to read the line-numbered preview; **Edit** to change it, then
+   **Save** or <kbd>Ctrl/Cmd+S</kbd>.
+3. To bring a note into the chat, press **⤴ Cite to chat** for the whole note, or
+   select text and press **Ask** to attach a question to that passage.
+4. Paste a screenshot while editing to store it in the vault.
+5. Switch the dock to **🧠 Mind map** to explore the note's structure, or open
+   **🕸 Graph view** above the tree to see the vault as a graph (**Local** = around
+   the open note, **Depth 1–5**).
+
 ## Features
 
 - **Vault sidebar** — lazy directory tree; open a note with one click, create,
@@ -181,28 +193,6 @@ The default vault is `$DSH_WORKSPACE/obsidian_vault`, falling back to
 
 The UI is bilingual (English / Chinese) and uses DSH theme tokens, so it follows
 the app's light and dark themes.
-
-## Comparison
-
-| | This plugin | [DedsecLemon/dsh-obsidian](https://github.com/DedsecLemon/dsh-obsidian) |
-| --- | --- | --- |
-| Vault tree, search | ✅ tree, title + body search | ✅ tree, whole-vault matching-line search |
-| Obsidian callouts | ✅ 13 types + 15 aliases, line-numbered spine | ✅ rendered, fold state kept |
-| Tables, fenced code, setext headings | ✅ | ✅ |
-| Frontmatter | ✅ preserved on save | ✅ shown as properties |
-| Paste screenshots + attachment folder moves | ✅ | — |
-| Cite a note / ask about a selection | ✅ | — |
-| Session & workspace housekeeping | ✅ | — |
-| Backlinks | ❌ | ✅ |
-| Outline pane | ❌ | ✅ |
-| Mind map view (headings + lists) | ✅ | — |
-| Graph view (vault-wide links + tags) | ✅ | — |
-| `==highlight==` | ✅ | ✅ |
-
-The point is not "more features" — it is a different trade-off. If you need
-outline and backlinks, use the other plugin (or Obsidian itself); if you want a
-faithful Obsidian reading/editing experience with a clean hand-off into the chat,
-this one is built for that.
 
 ## Configuration
 
