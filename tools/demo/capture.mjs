@@ -737,7 +737,7 @@ async function graphShot(page) {
     await sleep(1800);
   }
   await sleep(stale ? 1400 : 2600);
-  const shot = join(DEMO_DIR, stale ? "graph-error.png" : "graph-panel.png");
+  const shot = join(DEMO_DIR, stale ? "graph-error.png" : process.env.GRAPH_LOCAL === "1" ? "graph-panel-local.png" : "graph-panel.png");
   await page.screenshotFile(shot, { format: "png", scale: 1 });
   console.log(JSON.stringify({ stale, shot }));
 }

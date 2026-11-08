@@ -139,8 +139,12 @@
     graphRestartHint: "当前 DSH 进程里还是旧版 host（缺少 /obsidian/graph 路由）。完全退出 DSH（Cmd+Q）再打开，然后点「重试」。",
     graphErrorTitle: "关系图谱加载失败",
     graphBuilding: "正在从笔记构建图谱（{done}/{total}）…",
-    graphFocus: "聚焦当前笔记",
-    graphFocusHint: "一键切到以当前打开笔记为中心的局部图谱",
+    graphFocus: "聚焦",
+    graphFocusHint: "一键切到以当前打开笔记为中心的局部图谱（局部模式下再点 = 重新居中）",
+    graphLegendNote: "笔记",
+    graphLegendTag: "标签",
+    graphLegendFocus: "当前笔记",
+    graphLegendLink: "链接",
     graphDepth: "跳数",
     graphDepthHint: "局部图谱跳数，1–5 跳（与 Obsidian 局部图谱的 depth 范围一致）",
     graphRetry: "重试",
@@ -310,8 +314,12 @@
     graphRestartHint: "The running DSH host still predates the /obsidian/graph route. Quit DSH completely (Cmd+Q), reopen it, then press Retry.",
     graphErrorTitle: "The graph view failed to load",
     graphBuilding: "Building the graph from notes ({done}/{total})…",
-    graphFocus: "Focus current note",
-    graphFocusHint: "Switch to the local graph centred on the note that is open",
+    graphFocus: "Focus",
+    graphFocusHint: "Jump to the local graph centred on the open note (click again to re-centre)",
+    graphLegendNote: "note",
+    graphLegendTag: "tag",
+    graphLegendFocus: "current note",
+    graphLegendLink: "link",
     graphDepth: "Depth",
     graphDepthHint: "Local graph depth, 1–5 hops (same range as Obsidian's local graph depth)",
     graphRetry: "Retry",
@@ -863,6 +871,11 @@
     `.dsh-obs-graph-depth{display:inline-flex;align-items:center;gap:2px;margin-left:6px;padding-left:8px;border-left:1px solid var(--dsw-alias-border-l2)}`,
     `.dsh-obs-graph-depth-label{font-size:11px;color:var(--dsw-alias-label-tertiary);margin-right:2px}`,
     `.dsh-obs-graph-depth button{min-width:20px;padding:0 4px}`,
+    `.dsh-obs-graph-head button{white-space:nowrap;flex:none}`,
+    `.dsh-obs-legend-dot{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--dsw-alias-label-secondary);display:inline-block;box-sizing:border-box}`,
+    `.dsh-obs-legend-tag{width:8px;height:8px;border-radius:2px;background:var(--dsw-alias-brand-primary);display:inline-block}`,
+    `.dsh-obs-legend-focus{width:9px;height:9px;border-radius:50%;border:2px solid var(--dsw-alias-state-error-primary);display:inline-block;box-sizing:border-box}`,
+    `.dsh-obs-legend-link{width:14px;height:1.5px;background:var(--dsw-alias-border-l2);display:inline-block}`,
     `.dsh-obs-graph-canvas{position:relative;flex:1;min-height:0;overflow:hidden;cursor:grab;user-select:none;-webkit-user-select:none}`,
     `.dsh-obs-graph-svg{display:block;width:100%;height:100%}`,
     `.dsh-obs-graph-edge{stroke:var(--dsw-alias-border-l2);stroke-width:1;opacity:.55}`,
@@ -2729,6 +2742,7 @@
     const [loading, setLoading] = useState(true);
     const [mode, setMode] = useState("global");
     // 局部图谱跳数：与 Obsidian 局部图谱的 depth 滑杆对齐（范围 1–5，默认 1）
+    const [fitKey, setFitKey] = useState(0);
     const [localDepth, setLocalDepth] = useState(() => {
       try {
         const v = parseInt(localStorage.getItem(LS_LOCAL_DEPTH) ?? "", 10);
@@ -2913,7 +2927,7 @@
       const h = el.clientHeight || 560;
       const fit = Math.min((w - 30) / plan.width, (h - 30) / plan.height, 1);
       setTransform({ x: (w - plan.width * fit) / 2, y: (h - plan.height * fit) / 2, s: fit });
-    }, [plan]);
+    }, [plan, fitKey]);
 
     const onWheel = useCallback((e) => {
       if (plan.nodes.length === 0) return;
@@ -2963,6 +2977,34 @@
     };
     const showAllLabels = plan.nodes.length <= 150;
 
+    // 小按钮工厂：分段控件（全库/局部/聚焦）+ 右侧图标按钮，统一尺寸，永不换行
+    const modeButton = (label, active, onClick, options = {}) => createElement("button", {
+      className: "dsh-obs-mini",
+      style: {
+        flex: "none",
+        width: "auto",
+        height: 24,
+        padding: "0 10px",
+        border: "none",
+        borderRight: "1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.12))",
+        borderRadius: 0,
+        background: active ? "var(--dsw-alias-interactive-bg-hover-accent, rgba(99,102,241,.18))" : "transparent",
+        color: active ? "var(--dsw-alias-brand-primary, #8b7cf6)" : "var(--dsw-alias-label-secondary, #b3b8c2)",
+        whiteSpace: "nowrap",
+        cursor: options.disabled === true ? "not-allowed" : "pointer",
+        opacity: options.disabled === true ? 0.45 : 1,
+      },
+      disabled: options.disabled === true,
+      title: options.title,
+      onClick,
+    }, label);
+    const iconButton = (glyph, title, onClick) => createElement("button", {
+      className: "dsh-obs-mini",
+      style: { flex: "none", width: "auto", height: 24, minWidth: 24, padding: "0 4px" },
+      title,
+      onClick,
+    }, glyph);
+
     const head = createElement("div", {
       className: "dsh-obs-graph-head",
       title: t("graphMove"),
@@ -2970,49 +3012,75 @@
       style: {
         display: "flex",
         alignItems: "center",
-        gap: 8,
-        flexWrap: "wrap",
-        padding: "10px 14px",
+        gap: 10,
+        padding: "8px 12px",
         borderBottom: "1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.12))",
         cursor: "move",
         userSelect: "none",
         flex: "none",
       },
     },
-      createElement("div", { className: "dsh-obs-graph-title" }, `🕸 ${t("graph")}`),
-      data !== null && createElement("div", { className: "dsh-obs-graph-stats" },
-        t("graphStats", { notes: data.stats.notes, tags: data.stats.tags, edges: data.stats.edges })),
-      createElement("div", { className: "dsh-obs-graph-modes" },
-        createElement("button", {
-          className: `dsh-obs-mini${mode === "global" ? " dsh-obs-on" : ""}`,
-          onClick: () => setMode("global"),
-        }, t("graphGlobal")),
-        createElement("button", {
-          className: `dsh-obs-mini${mode === "local" ? " dsh-obs-on" : ""}`,
-          disabled: !localAvailable,
-          title: localAvailable ? t("graphLocalHint") : t("graphNoNote"),
-          onClick: () => { if (localAvailable) setMode("local"); },
-        }, t("graphLocal")),
-        // 全库模式下的快捷操作：一键切到「以当前笔记为中心」的局部视图
-        mode === "global" && createElement("button", {
-          className: "dsh-obs-mini",
-          disabled: !localAvailable,
-          title: localAvailable ? t("graphFocusHint") : t("graphNoNote"),
-          onClick: () => { if (localAvailable) setMode("local"); },
-        }, `🎯 ${t("graphFocus")}`),
+      createElement("div", {
+        className: "dsh-obs-graph-title",
+        style: { whiteSpace: "nowrap", flex: "none" },
+      }, `🕸 ${t("graph")}`),
+      data !== null && createElement("div", {
+        className: "dsh-obs-graph-stats",
+        style: { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: "0 1 auto" },
+      }, t("graphStats", { notes: data.stats.notes, tags: data.stats.tags, edges: data.stats.edges })),
+      // 右侧控制区整体作为一块：分段按钮组（全库/局部/聚焦）+ 局部跳数 + 图标按钮
+      createElement("div", {
+        style: { display: "flex", alignItems: "center", gap: 10, marginLeft: "auto", flex: "none" },
+      },
+        createElement("div", {
+          className: "dsh-obs-graph-modes",
+          style: {
+            display: "flex",
+            alignItems: "center",
+            flex: "none",
+            border: "1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.12))",
+            borderRadius: 8,
+            overflow: "hidden",
+            width: "auto",
+          },
+        },
+          modeButton(t("graphGlobal"), mode === "global", () => setMode("global")),
+          modeButton(t("graphLocal"), mode === "local", () => setMode("local"), {
+            disabled: !localAvailable,
+            title: localAvailable ? t("graphLocalHint") : t("graphNoNote"),
+          }),
+          modeButton(t("graphFocus"), false, () => {
+            if (!localAvailable) return;
+            setMode("local");
+            setFitKey((v) => v + 1);
+          }, {
+            disabled: !localAvailable,
+            title: localAvailable ? t("graphFocusHint") : t("graphNoNote"),
+          }),
+        ),
         // 局部模式：跳数（与 Obsidian 局部图谱 depth 滑杆同范围 1–5）
-        mode === "local" && createElement("span", { className: "dsh-obs-graph-depth", title: t("graphDepthHint") },
-          createElement("span", { className: "dsh-obs-graph-depth-label" }, t("graphDepth")),
+        mode === "local" && createElement("span", {
+          className: "dsh-obs-graph-depth",
+          style: { display: "flex", alignItems: "center", gap: 2, flex: "none" },
+          title: t("graphDepthHint"),
+        },
+          createElement("span", {
+            className: "dsh-obs-graph-depth-label",
+            style: { fontSize: 11, marginRight: 2, whiteSpace: "nowrap" },
+          }, t("graphDepth")),
           [1, 2, 3, 4, 5].map((depth) => createElement("button", {
             key: depth,
             className: `dsh-obs-mini${localDepth === depth ? " dsh-obs-on" : ""}`,
+            style: { flex: "none", width: "auto", height: 24, minWidth: 22, padding: "0 5px", whiteSpace: "nowrap" },
             onClick: () => setLocalDepth(depth),
           }, String(depth))),
         ),
+        createElement("div", { style: { display: "flex", alignItems: "center", gap: 2, flex: "none" } },
+          iconButton("↻", t("graphRerun"), () => setSeed((v) => v + 1)),
+          iconButton("⟳", t("graphRefresh"), () => setReloadKey((v) => v + 1)),
+          iconButton("✕", t("graphClose"), onClose),
+        ),
       ),
-      createElement("button", { className: "dsh-obs-mini", title: t("graphRerun"), onClick: () => setSeed((v) => v + 1) }, "↻"),
-      createElement("button", { className: "dsh-obs-mini", title: t("graphRefresh"), onClick: () => setReloadKey((v) => v + 1) }, "⟳"),
-      createElement("button", { className: "dsh-obs-mini", title: t("graphClose"), onClick: onClose }, "✕"),
     );
 
     let body;
@@ -3134,12 +3202,32 @@
         className: "dsh-obs-graph-hint",
         style: {
           flex: "none",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
           padding: "6px 14px",
           borderTop: "1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.12))",
           fontSize: 11,
           color: "var(--dsw-alias-label-tertiary, #9aa0aa)",
         },
-      }, truncatedNote),
+      },
+        createElement("span", {
+          style: { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: "0 1 auto" },
+        }, truncatedNote),
+        createElement("span", {
+          className: "dsh-obs-graph-legend",
+          style: { display: "flex", alignItems: "center", gap: 10, flex: "none", marginLeft: "auto", whiteSpace: "nowrap" },
+        },
+          createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: 4 } },
+            createElement("span", { className: "dsh-obs-legend-dot" }), t("graphLegendNote")),
+          createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: 4 } },
+            createElement("span", { className: "dsh-obs-legend-tag" }), t("graphLegendTag")),
+          createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: 4 } },
+            createElement("span", { className: "dsh-obs-legend-focus" }), t("graphLegendFocus")),
+          createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: 4 } },
+            createElement("span", { className: "dsh-obs-legend-link" }), t("graphLegendLink")),
+        ),
+      ),
       createElement("div", { className: "dsh-obs-graph-resize", title: t("resize"), onMouseDown: beginPanelResize }),
     );
   }
