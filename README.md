@@ -122,6 +122,12 @@ The default vault is `$DSH_WORKSPACE/obsidian_vault`, falling back to
   clickable `[[wikilinks]]` (aliases and `#sections` included). Inline Obsidian
   styles render too: `==highlight==`, `~~strikethrough~~`, backslash escapes,
   hidden `%%comments%%`, and `<https://…>` / bare URLs as links.
+- **Graph view** — a vault-wide relation graph built from every note's `[[links]]`
+  and `#tags` (no graph file, no export step: it is computed from your Markdown on
+  the fly, like Obsidian's own graph). A vault-level entry above the note tree
+  opens it as its own view; scroll to zoom, drag to pan, hover to highlight
+  neighbours, click a note to open it in the dock. Switch to **Local** for the
+  2-hop neighbourhood of the note that is currently open.
 - **Mind map view** — toggle the preview into a horizontal mind map built from the
   note's headings and list items. Scroll to zoom, drag to pan; select a node to
   jump to its source line, or insert that whole branch (node + descendants) into
@@ -174,6 +180,7 @@ the app's light and dark themes.
 | Backlinks | ❌ | ✅ |
 | Outline pane | ❌ | ✅ |
 | Mind map view (headings + lists) | ✅ | — |
+| Graph view (vault-wide links + tags) | ✅ | — |
 | `==highlight==` | ✅ | ✅ |
 
 The point is not "more features" — it is a different trade-off. If you need

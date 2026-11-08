@@ -687,6 +687,131 @@ async function chatTest(page) {
 
 
 /**
+ * 关系图谱演示录制：笔记树 → vault 级「关系图谱」入口 → 全库图谱 → 平移/缩放 →
+ * 悬停看邻居 → 点节点打开笔记 → 切「局部」→ 关图谱。
+ */
+async function graphDemo(page) {
+  await prepare(page);
+  rmSync(FRAMES_DIR, { recursive: true, force: true });
+  mkdirSync(FRAMES_DIR, { recursive: true });
+  const frames = [];
+  const started0 = Date.now();
+  const mark = (label) => console.log(`  [${((Date.now() - started0) / 1000).toFixed(1)}s] ${label}`);
+  let running = true;
+  const targetFrameMs = Number(process.env.FRAME_MS || 90);
+
+  const mouse = (type, x, y, extra = {}) => page.cdp.send("Input.dispatchMouseEvent", {
+    type, x, y, button: "left", buttons: type === "mouseReleased" ? 0 : 1, clickCount: 1, ...extra,
+  });
+  const drag = async (fromX, fromY, toX, toY, steps = 14) => {
+    await mouse("mousePressed", fromX, fromY);
+    for (let i = 1; i <= steps; i += 1) {
+      await mouse("mouseMoved", fromX + ((toX - fromX) * i) / steps, fromY + ((toY - fromY) * i) / steps);
+      await sleep(16);
+    }
+    await mouse("mouseReleased", toX, toY);
+  };
+  const centerOfExpr = async (expr) => page.evaluate(`(() => {
+    const el = ${expr};
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+  })()`);
+  const clickByText = async (scope, pattern) => page.evaluate(`(() => {
+    const re = ${pattern};
+    const el = [...document.querySelectorAll(${JSON.stringify(scope)})].find((b) => re.test(b.textContent || "") || re.test(b.getAttribute("title") || ""));
+    if (!el) return false;
+    el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+    return true;
+  })()`);
+
+  await openNotes(page);
+  await sleep(600);
+
+  // 先打开一篇笔记：局部图谱模式需要「当前笔记」
+  await expandFolder(page, "Projects", "Why a notes pane");
+  await sleep(300);
+  await openNote(page, "Why a notes pane");
+  mark("note open");
+  await sleep(900);
+
+  const loop = (async () => {
+    while (running) {
+      const started = Date.now();
+      try {
+        const data = await page.screenshotBase64({ format: "jpeg", quality: 82 });
+        const file = join(FRAMES_DIR, `frame-${String(frames.length + 1).padStart(5, "0")}.jpg`);
+        writeFileSync(file, Buffer.from(data, "base64"));
+        frames.push({ file, t: Date.now() - started0 });
+      } catch { /* 页面忙时丢一帧 */ }
+      const spent = Date.now() - started;
+      if (spent < targetFrameMs) await sleep(targetFrameMs - spent);
+    }
+  })();
+  await sleep(1200);
+
+  // 1) vault 级入口：笔记树上方「🕸 关系图谱」行
+  const opened = await page.evaluate(`(() => {
+    const row = [...document.querySelectorAll('.dsh-obs-root-row')].find((r) => (r.textContent || "").includes("Graph view") || (r.textContent || "").includes("关系图谱"));
+    if (!row) return false;
+    const btn = row.querySelector("button");
+    if (!btn) return false;
+    btn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+    return true;
+  })()`);
+  if (!opened) throw new Error("graph entry row not found");
+  await page.waitFor(`!!document.querySelector('.dsh-obs-graph-canvas')`, { timeout: 15000, label: "graph canvas" });
+  mark("graph open");
+  await sleep(2400);
+
+  const rect = await page.evaluate(`(() => { const r = document.querySelector('.dsh-obs-graph-canvas').getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })()`);
+  const cx = Math.round(rect.x + rect.w / 2);
+  const cy = Math.round(rect.y + rect.h / 2);
+
+  // 2) 拖动 + 缩放
+  await drag(cx + 60, cy + 40, cx - 70, cy - 20);
+  mark("pan");
+  await sleep(700);
+  await page.cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", x: cx, y: cy, deltaX: 0, deltaY: -120 });
+  mark("zoom");
+  await sleep(900);
+
+  // 3) 悬停一个节点看邻居高亮
+  const hoverAt = await centerOfExpr(`[...document.querySelectorAll('.dsh-obs-graph-note')].find((n) => (n.textContent || "").includes('Home'))`);
+  if (hoverAt) {
+    await mouse("mouseMoved", hoverAt.x, hoverAt.y);
+    mark("hover");
+    await sleep(1600);
+  }
+
+  // 4) 点节点打开笔记（Dock）
+  const clickAt = await centerOfExpr(`[...document.querySelectorAll('.dsh-obs-graph-note')].find((n) => (n.textContent || "").includes('Roadmap'))`);
+  if (clickAt) {
+    await mouse("mouseMoved", clickAt.x, clickAt.y);
+    await mouse("mousePressed", clickAt.x, clickAt.y);
+    await mouse("mouseReleased", clickAt.x, clickAt.y);
+    mark("open note from graph");
+    await sleep(2200);
+  }
+
+  // 5) 切「局部」：以刚打开/当前笔记为中心
+  await clickByText(".dsh-obs-graph-modes button", "/Local|局部/");
+  mark("local graph");
+  await sleep(2600);
+
+  // 6) 关闭图谱
+  await clickByText(".dsh-obs-graph-head button", "/Close the graph|关闭图谱/");
+  mark("graph closed");
+  await sleep(1600);
+
+  running = false;
+  await loop;
+  const manifest = { width: VW, height: VH, capturedAt: new Date().toISOString(), frames };
+  writeFileSync(join(FRAMES_DIR, "manifest.json"), JSON.stringify(manifest));
+  console.log(`recorded ${frames.length} frames in ${((Date.now() - started0) / 1000).toFixed(1)}s → ${FRAMES_DIR}`);
+}
+
+/**
  * 思维导图（B1）演示录制：行内语法笔记 → 思维导图视图 → 平移/缩放 → 选节点 →
  * 跳到源码行 → 回导图 → 把分支插入对话。产出带时间戳的 frames + manifest，
  * 交给 make-gif.mjs 合成 GIF。
@@ -1052,6 +1177,7 @@ async function main() {
     else if (mode === "dom") await domDump(page);
     else if (mode === "sessions") await sessionsDump(page);
     else if (mode === "mapdemo") await mapDemo(page);
+    else if (mode === "graphdemo") await graphDemo(page);
     else if (mode === "chattest") await chatTest(page);
     else if (mode === "selftest") await selftest(page);
     else throw new Error(`unknown mode: ${mode}`);

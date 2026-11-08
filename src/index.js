@@ -569,6 +569,230 @@ function parseNote(raw) {
   return { frontmatter, frontmatterRaw, body, links };
 }
 
+
+// ── 关系图谱（全库 .md + [[双链]] + 标签）────────────────────────────────
+const GRAPH_MAX_NOTES = 1200;           // 单次图谱最多收录的笔记数（超出截断）
+const GRAPH_MAX_EDGES = 12000;          // 连线上限，避免超大 vault 传爆前端
+const GRAPH_TAG_MAX = 800;              // 标签节点上限
+const GRAPH_CACHE_MAX_ROOTS = 2;        // 只缓存最近用过的 vault 根
+/** rootCanon → { files: Map<rel,{mtimeMs,size,links,tags}>, result } */
+const graphCaches = new Map();
+
+/** frontmatter 的 tags 值（" [a, b]" / "a b" / "a, b"）→ 标签列表。 */
+function parseFrontmatterTags(value) {
+  if (typeof value !== "string" || value.trim() === "") return [];
+  return value
+    .replace(/^\[|\]$/g, "")
+    .split(/[,\s]+/)
+    .map((tag) => tag.replace(/^#/, "").replace(/^["']|["']$/g, "").trim())
+    .filter((tag) => tag !== "" && /^[\p{L}\p{N}_/-]{1,64}$/u.test(tag));
+}
+
+/**
+ * 正文里的行内标签：先剥掉围栏代码块与行内代码，再按 Obsidian 语义扫描 `#tag`
+ * （前一个字符必须是行首/空白/常见分隔符；纯数字不算标签）。
+ * @param body - 笔记正文（frontmatter 已剥离）。
+ * @returns 标签名数组（不含 `#`）。
+ */
+function parseInlineTags(body) {
+  const visible = body
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/~~~[\s\S]*?~~~/g, " ")
+    .replace(/`[^`\n]*`/g, " ");
+  const tags = new Set();
+  const re = /(^|[\s(（\[【,，;；、>|])#([\p{L}\p{N}_/-]{1,64})/gu;
+  for (const match of visible.matchAll(re)) {
+    const tag = match[2].replace(/\/+$/, "");
+    if (tag === "" || /^\d+$/.test(tag)) continue;
+    tags.add(tag);
+  }
+  return [...tags];
+}
+
+/** 一篇笔记的图谱数据：双链目标（去重）+ 标签（frontmatter + 正文）。 */
+function parseGraphNote(content) {
+  const { frontmatter, body, links } = parseNote(content);
+  const tags = new Set(parseFrontmatterTags(frontmatter && frontmatter.tags));
+  for (const tag of parseInlineTags(body)) tags.add(tag);
+  return { links, tags: [...tags] };
+}
+
+/** 递归列出 vault 里的 .md（跳过隐藏目录/IGNORED_DIRS/符号链接），返回 [{rel,mtimeMs,size}]。 */
+async function listNoteFiles(rootCanon) {
+  const out = [];
+  const walk = async (dir, prefix) => {
+    if (out.length >= GRAPH_MAX_NOTES) return;
+    let names;
+    try {
+      names = await readdir(dir);
+    } catch {
+      return;
+    }
+    for (const name of names) {
+      if (out.length >= GRAPH_MAX_NOTES) return;
+      if (name.startsWith(".")) continue;
+      const full = join(dir, name);
+      let st;
+      try {
+        st = await lstat(full);
+      } catch {
+        continue;
+      }
+      if (st.isDirectory()) {
+        if (!IGNORED_DIRS.has(name)) await walk(full, prefix === "" ? name : `${prefix}/${name}`);
+        continue;
+      }
+      if (!st.isFile() || extname(name).toLowerCase() !== NOTE_EXT) continue;
+      out.push({ rel: prefix === "" ? name : `${prefix}/${name}`, mtimeMs: st.mtimeMs, size: st.size });
+    }
+  };
+  await walk(rootCanon, "");
+  return out;
+}
+
+/** POSIX 风格拼接 + 折叠 `.`/`..`（链接目标解析用）。 */
+function joinPosix(dir, rel) {
+  const parts = dir === "" ? [] : dir.split("/");
+  for (const seg of rel.split("/")) {
+    if (seg === "" || seg === ".") continue;
+    if (seg === "..") parts.pop();
+    else parts.push(seg);
+  }
+  return parts.join("/");
+}
+
+/**
+ * `[[链接目标]]` → vault 内笔记 rel 路径（与 Obsidian 解析语义对齐）：
+ * 1) 精确的 vault 根相对路径；2) 相对当前笔记目录；3) 文件名匹配（多个取层数最浅，再按字母序）。
+ * 解析不到返回 null（该链接不产生连线，计入 unresolved）。
+ */
+function resolveGraphLink(target, fromRel, byPath, byBase) {
+  let raw = String(target == null ? "" : target).trim();
+  if (raw === "" || /^[a-z]+:\/\//i.test(raw)) return null;
+  raw = raw.replace(/\\/g, "/");
+  const stripExt = (value) => value.replace(/\.md$/i, "");
+  const tryPath = (value) => byPath.get(stripExt(value).replace(/^\.\//, "").toLowerCase()) ?? null;
+  let hit = tryPath(raw);
+  if (hit !== null) return hit;
+  if (raw.includes("/") || raw.startsWith(".")) {
+    const dir = fromRel.includes("/") ? fromRel.slice(0, fromRel.lastIndexOf("/")) : "";
+    hit = tryPath(joinPosix(dir, raw));
+    if (hit !== null) return hit;
+  }
+  const base = stripExt(raw.split("/").pop()).toLowerCase();
+  const list = byBase.get(base);
+  if (list === undefined || list.length === 0) return null;
+  if (list.length === 1) return list[0];
+  return [...list].sort((a, b) => (a.split("/").length - b.split("/").length) || a.localeCompare(b))[0];
+}
+
+/**
+ * 构建（或复用缓存的）关系图谱。缓存按 vault 根保存：
+ * 每篇笔记只记住 mtimeMs+size 与解析结果，文件没变就不重读、图没变就不重算。
+ * @param rootCanon - vault 根的 realpath。
+ * @returns `{ nodes, edges, stats }`：note/tag 节点与 link/tag 连线。
+ */
+async function buildGraph(rootCanon) {
+  const listed = await listNoteFiles(rootCanon);
+  let cache = graphCaches.get(rootCanon);
+  if (cache === undefined) {
+    cache = { files: new Map(), result: null };
+    graphCaches.set(rootCanon, cache);
+    while (graphCaches.size > GRAPH_CACHE_MAX_ROOTS) {
+      const oldest = graphCaches.keys().next().value;
+      if (oldest === rootCanon) break;
+      graphCaches.delete(oldest);
+    }
+  }
+  const files = new Map();
+  let dirty = cache.result === null;
+  for (const item of listed) {
+    const prev = cache.files.get(item.rel);
+    if (prev !== undefined && prev.mtimeMs === item.mtimeMs && prev.size === item.size) {
+      files.set(item.rel, prev);
+      continue;
+    }
+    let parsed = { links: [], tags: [] };
+    if (item.size <= MAX_READ) {
+      try {
+        parsed = parseGraphNote(await readFile(join(rootCanon, item.rel), "utf8"));
+      } catch {
+        parsed = { links: [], tags: [] };
+      }
+    }
+    files.set(item.rel, { mtimeMs: item.mtimeMs, size: item.size, links: parsed.links, tags: parsed.tags });
+    dirty = true;
+  }
+  if (!dirty && cache.result !== null) {
+    cache.files = files;
+    return cache.result;
+  }
+
+  const byPath = new Map();
+  const byBase = new Map();
+  for (const rel of files.keys()) {
+    const noExt = rel.replace(/\.md$/i, "");
+    byPath.set(noExt.toLowerCase(), rel);
+    const base = basename(noExt).toLowerCase();
+    const list = byBase.get(base);
+    if (list === undefined) byBase.set(base, [rel]);
+    else list.push(rel);
+  }
+
+  const nodes = new Map();
+  for (const rel of files.keys()) {
+    nodes.set(`note:${rel}`, { id: `note:${rel}`, kind: "note", label: basename(rel, NOTE_EXT), path: rel });
+  }
+  const edges = [];
+  const seenEdges = new Set();
+  const addEdge = (source, target) => {
+    if (edges.length >= GRAPH_MAX_EDGES) return;
+    const key = `${source}\u0000${target}`;
+    if (seenEdges.has(key)) return;
+    seenEdges.add(key);
+    edges.push({ source, target });
+  };
+  const tagIds = new Map();
+  let unresolved = 0;
+  for (const [rel, data] of files) {
+    const self = `note:${rel}`;
+    for (const link of data.links) {
+      const target = resolveGraphLink(link, rel, byPath, byBase);
+      if (target === null) {
+        unresolved += 1;
+        continue;
+      }
+      if (target !== rel) addEdge(self, `note:${target}`);
+    }
+    for (const tag of data.tags) {
+      const key = tag.toLowerCase();
+      let tagId = tagIds.get(key);
+      if (tagId === undefined) {
+        if (tagIds.size >= GRAPH_TAG_MAX) continue;
+        tagId = `tag:${key}`;
+        tagIds.set(key, tagId);
+        nodes.set(tagId, { id: tagId, kind: "tag", label: `#${tag}` });
+      }
+      addEdge(self, tagId);
+    }
+  }
+  const result = {
+    nodes: [...nodes.values()],
+    edges,
+    stats: {
+      notes: files.size,
+      tags: tagIds.size,
+      edges: edges.length,
+      unresolved,
+      truncated: listed.length >= GRAPH_MAX_NOTES,
+    },
+    generatedAt: Date.now(),
+  };
+  cache.files = files;
+  cache.result = result;
+  return result;
+}
+
 /**
  * 构造 /obsidian/* 的请求处理器。
  * @param options - 可选依赖注入。
@@ -975,6 +1199,12 @@ export function createHandler(options = {}) {
             hideAttachmentDir: next.hideAttachmentDir,
             deleteOrphanAttachments: next.deleteOrphanAttachments,
           });
+        }
+
+        // ── 关系图谱：全库笔记 + [[双链]] + 标签（只读，按 mtime 增量缓存）──
+        case "graph": {
+          if (req.method !== "GET") return send(res, 405, { error: "method not allowed" });
+          return send(res, 200, await buildGraph(rootCanon));
         }
 
         // ── 目录树（懒加载；仅目录与 .md 笔记）────────────────────────

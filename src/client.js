@@ -119,6 +119,21 @@
     mapJump: "跳到源码行",
     mapAsk: "把分支插入对话",
     branchCited: "已把分支插入对话（{n} 行）",
+    graph: "关系图谱",
+    graphHint: "滚轮缩放 · 拖动平移 · 点击笔记打开 · 悬停看邻居",
+    graphGlobal: "全库",
+    graphLocal: "局部",
+    graphLocalHint: "以当前打开的笔记为中心显示 2 跳邻居",
+    graphRefresh: "重新读取 vault",
+    graphRerun: "重新布局",
+    graphClose: "关闭图谱",
+    graphLoading: "正在构建关系图谱…",
+    graphEmpty: "vault 里还没有可显示的笔记或双链",
+    graphError: "关系图谱加载失败：{msg}",
+    graphStats: "{notes} 篇笔记 · {tags} 个标签 · {edges} 条连线",
+    graphTruncated: "笔记较多，图谱只画了最重要的 {n} 个节点",
+    graphNoNote: "先在侧边栏打开一篇笔记，才能看局部图谱",
+    graphOpen: "打开关系图谱",
     cited: "已引用到对话",
     copied: "已复制引用，可粘贴到输入框",
     noInput: "未找到对话输入框，引用已复制到剪贴板",
@@ -263,6 +278,21 @@
     mapJump: "Jump to line",
     mapAsk: "Insert branch into chat",
     branchCited: "Branch inserted into the chat ({n} lines)",
+    graph: "Graph view",
+    graphHint: "Scroll to zoom · drag to pan · click a note to open it · hover to see neighbours",
+    graphGlobal: "Vault",
+    graphLocal: "Local",
+    graphLocalHint: "Show the 2-hop neighbourhood of the note that is open",
+    graphRefresh: "Re-read the vault",
+    graphRerun: "Re-run the layout",
+    graphClose: "Close the graph",
+    graphLoading: "Building the graph…",
+    graphEmpty: "No notes or links to draw yet",
+    graphError: "Graph view failed: {msg}",
+    graphStats: "{notes} notes · {tags} tags · {edges} links",
+    graphTruncated: "Large vault: only the {n} most connected nodes are drawn",
+    graphNoNote: "Open a note in the sidebar first to see the local graph",
+    graphOpen: "Open the graph view",
     cited: "Cited to chat",
     copied: "Reference copied — paste it into the input",
     noInput: "No chat input found — reference copied to clipboard",
@@ -322,7 +352,7 @@
     }
   }
 
-  let shared = { notesOpen: readNotesOpen(), openNote: null, vaultRev: 0, toast: null, noteCount: 0, prompt: null };
+  let shared = { notesOpen: readNotesOpen(), openNote: null, graphOpen: false, vaultRev: 0, toast: null, noteCount: 0, prompt: null };
   const sharedListeners = new Set();
 
   function patchShared(patch) {
@@ -787,6 +817,27 @@
     `.dsh-obs-map-actions button{padding:3px 8px;font-size:12px}`,
     `.dsh-obs-map-empty{display:flex;align-items:center;justify-content:center;height:100%;min-height:220px;padding:24px;color:var(--dsw-alias-label-tertiary);text-align:center}`,
     `.dsh-obs-md-row.dsh-obs-md-flash{background:color-mix(in srgb,var(--dsw-alias-brand-primary) 16%,transparent);border-radius:4px}`,
+    // ── 关系图谱（shell.overlay，vault 级独立视图）──
+    `.dsh-obs-graph{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:40;display:flex;flex-direction:column;width:min(1120px,94vw);height:min(760px,88vh);border:1px solid var(--dsw-alias-border-l2);border-radius:14px;background:var(--dsw-alias-bg-overlay);box-shadow:0 24px 64px rgba(0,0,0,.45);overflow:hidden;color:var(--dsw-alias-label-primary)}`,
+    `.dsh-obs-graph-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--dsw-alias-border-l2);flex-wrap:wrap}`,
+    `.dsh-obs-graph-title{font-weight:600;font-size:14px}`,
+    `.dsh-obs-graph-stats{font-size:11px;color:var(--dsw-alias-label-tertiary)}`,
+    `.dsh-obs-graph-modes{display:flex;gap:4px;margin-left:auto}`,
+    `.dsh-obs-graph-modes button[disabled]{opacity:.45;cursor:not-allowed}`,
+    `.dsh-obs-graph-canvas{position:relative;flex:1;min-height:0;overflow:hidden;cursor:grab;user-select:none;-webkit-user-select:none}`,
+    `.dsh-obs-graph-svg{display:block;width:100%;height:100%}`,
+    `.dsh-obs-graph-edge{stroke:var(--dsw-alias-border-l2);stroke-width:1;opacity:.55}`,
+    `.dsh-obs-graph-edge-on{stroke:var(--dsw-alias-brand-primary);opacity:.9;stroke-width:1.6}`,
+    `.dsh-obs-graph-node{cursor:pointer}`,
+    `.dsh-obs-graph-note circle{fill:var(--dsw-alias-bg-overlay);stroke:var(--dsw-alias-label-secondary);stroke-width:1.4}`,
+    `.dsh-obs-graph-tag rect{fill:var(--dsw-alias-brand-primary);opacity:.75}`,
+    `.dsh-obs-graph-sel circle,.dsh-obs-graph-sel rect{stroke:var(--dsw-alias-brand-primary);stroke-width:2.2}`,
+    `.dsh-obs-graph-focus circle{stroke:var(--dsw-alias-state-error-primary);stroke-width:2.4}`,
+    `.dsh-obs-graph-dim{opacity:.25}`,
+    `.dsh-obs-graph-node text{font-size:11px;fill:var(--dsw-alias-label-primary);pointer-events:none}`,
+    `.dsh-obs-graph-tag text{fill:var(--dsw-alias-label-secondary)}`,
+    `.dsh-obs-graph-hint{padding:6px 14px;border-top:1px solid var(--dsw-alias-border-l2);font-size:11px;color:var(--dsw-alias-label-tertiary)}`,
+    `.dsh-obs-graph-empty{display:flex;align-items:center;justify-content:center;flex:1;padding:32px;color:var(--dsw-alias-label-tertiary);text-align:center}`,
     // ── Obsidian callout（`> [!type] 标题`）配色：类型在根节点上带 data-callout ──
     `[data-callout="note"]{--dsh-obs-callout-color:#448aff}`,
     `[data-callout="abstract"]{--dsh-obs-callout-color:#00b8d4}`,
@@ -1106,6 +1157,7 @@
     // `![[附件/a.png]]` 会被当成 Vault 根下的 `附件/a.png` → 403 → 只剩断图。
     assetUrl: (rel, from) => `/obsidian/file?path=${encodeURIComponent(rel)}`
       + (from ? `&from=${encodeURIComponent(from)}` : ""),
+    graph: () => api("/graph"),
     note: (rel) => api(`/note?path=${encodeURIComponent(rel)}`),
     save: (rel, content) => api("/note", {
       method: "POST",
@@ -1546,6 +1598,14 @@
           title: t("newNote"),
           onClick: (e) => { e.stopPropagation(); void newNote(""); },
         }, "＋"),
+      ),
+      rootInfo && rootInfo.exists && createElement("div", { className: "dsh-obs-root-row", title: t("graphOpen") },
+        createElement("span", { className: "dsh-obs-root-path" }, `🕸 ${t("graph")}`),
+        createElement("button", {
+          className: "dsh-obs-mini",
+          title: t("graphOpen"),
+          onClick: (e) => { e.stopPropagation(); patchShared({ graphOpen: true }); },
+        }, "↗"),
       ),
       rootInfo && rootInfo.exists && attachDir !== null && createElement("div", { className: "dsh-obs-root-row", title: t("attachSettings") },
         createElement("span", { className: "dsh-obs-root-path" },
@@ -2619,6 +2679,226 @@
     );
   }
 
+  /**
+   * 关系图谱视图：全库 .md + [[双链]] + 标签（host `/obsidian/graph` 计算，
+   * 力导向布局在 src/graph.js）。可切到「局部」= 当前打开笔记的 2 跳邻居。
+   */
+  function GraphView({ t, currentNote, onOpenNote, onClose }) {
+    const [data, setData] = useState(null);
+    const [error, setError] = useState("");
+    const [loading, setLoading] = useState(true);
+    const [mode, setMode] = useState("global");
+    const [seed, setSeed] = useState(1);
+    const [hovered, setHovered] = useState(null);
+    const [reloadKey, setReloadKey] = useState(0);
+    const [transform, setTransform] = useState({ x: 0, y: 0, s: 1 });
+    const dragRef = useRef(null);
+    const wrapRef = useRef(null);
+
+    useEffect(() => {
+      let cancelled = false;
+      setLoading(true);
+      setError("");
+      treeApi.graph().then((res) => {
+        if (cancelled) return;
+        setData(res);
+        setLoading(false);
+      }).catch((err) => {
+        if (cancelled) return;
+        setError(String(err && err.message ? err.message : err));
+        setLoading(false);
+      });
+      return () => { cancelled = true; };
+    }, [reloadKey]);
+
+    const currentRel = currentNote && currentNote.rel ? currentNote.rel : null;
+    const focusId = currentRel !== null ? `note:${currentRel}` : null;
+    const localAvailable = data !== null && focusId !== null && data.nodes.some((node) => node.id === focusId);
+    const shown = useMemo(() => {
+      if (data === null) return { nodes: [], edges: [] };
+      if (mode === "local" && localAvailable) {
+        const sub = graphModule.localSubgraph(data, focusId, 2);
+        return { nodes: sub.nodes, edges: sub.edges };
+      }
+      return { nodes: data.nodes, edges: data.edges };
+    }, [data, mode, localAvailable, focusId]);
+    const plan = useMemo(
+      () => graphModule.layoutGraph(shown.nodes, shown.edges, { seed, maxNodes: 420 }),
+      [shown, seed],
+    );
+
+    // 打开 / 切换范围 / 重新布局后把整张图适配进画布
+    useEffect(() => {
+      const el = wrapRef.current;
+      if (!el || plan.nodes.length === 0) return;
+      const w = el.clientWidth || 900;
+      const h = el.clientHeight || 560;
+      const fit = Math.min((w - 30) / plan.width, (h - 30) / plan.height, 1);
+      setTransform({ x: (w - plan.width * fit) / 2, y: (h - plan.height * fit) / 2, s: fit });
+    }, [plan]);
+
+    const onWheel = useCallback((e) => {
+      if (plan.nodes.length === 0) return;
+      if (e.cancelable !== false && e.preventDefault) e.preventDefault();
+      const rect = e.currentTarget && e.currentTarget.getBoundingClientRect
+        ? e.currentTarget.getBoundingClientRect()
+        : { left: 0, top: 0 };
+      const px = (e.clientX || 0) - rect.left;
+      const py = (e.clientY || 0) - rect.top;
+      setTransform((prev) => {
+        const next = Math.min(4, Math.max(0.18, prev.s * (e.deltaY > 0 ? 0.9 : 1.11)));
+        const k = next / prev.s;
+        return { s: next, x: px - (px - prev.x) * k, y: py - (py - prev.y) * k };
+      });
+    }, [plan.nodes.length]);
+    const onMouseDown = useCallback((e) => {
+      if (e.button !== undefined && e.button !== 0) return;
+      dragRef.current = { x: e.clientX, y: e.clientY, ox: transform.x, oy: transform.y };
+    }, [transform.x, transform.y]);
+    const onMouseMove = useCallback((e) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      setTransform((prev) => ({ ...prev, x: drag.ox + (e.clientX - drag.x), y: drag.oy + (e.clientY - drag.y) }));
+    }, []);
+    const endDrag = useCallback(() => { dragRef.current = null; }, []);
+
+    const neighbourSet = useMemo(() => {
+      if (hovered === null) return null;
+      const set = new Set([hovered]);
+      for (const edge of shown.edges) {
+        if (edge.source === hovered) set.add(edge.target);
+        if (edge.target === hovered) set.add(edge.source);
+      }
+      return set;
+    }, [hovered, shown.edges]);
+
+    const fitLabel = (text, maxUnits) => {
+      let out = "";
+      let units = 0;
+      for (const ch of text) {
+        const w = /[\u2E80-\u9FFF\uF900-\uFAFF\u3000-\u303F\uFF00-\uFFEF]/.test(ch) ? 2 : 1;
+        if (units + w > maxUnits) return `${out}…`;
+        out += ch;
+        units += w;
+      }
+      return out;
+    };
+    const showAllLabels = plan.nodes.length <= 150;
+
+    const head = createElement("div", { className: "dsh-obs-graph-head" },
+      createElement("div", { className: "dsh-obs-graph-title" }, `🕸 ${t("graph")}`),
+      data !== null && createElement("div", { className: "dsh-obs-graph-stats" },
+        t("graphStats", { notes: data.stats.notes, tags: data.stats.tags, edges: data.stats.edges })),
+      createElement("div", { className: "dsh-obs-graph-modes" },
+        createElement("button", {
+          className: `dsh-obs-mini${mode === "global" ? " dsh-obs-on" : ""}`,
+          onClick: () => setMode("global"),
+        }, t("graphGlobal")),
+        createElement("button", {
+          className: `dsh-obs-mini${mode === "local" ? " dsh-obs-on" : ""}`,
+          disabled: !localAvailable,
+          title: localAvailable ? t("graphLocalHint") : t("graphNoNote"),
+          onClick: () => { if (localAvailable) setMode("local"); },
+        }, t("graphLocal")),
+      ),
+      createElement("button", { className: "dsh-obs-mini", title: t("graphRerun"), onClick: () => setSeed((v) => v + 1) }, "↻"),
+      createElement("button", { className: "dsh-obs-mini", title: t("graphRefresh"), onClick: () => setReloadKey((v) => v + 1) }, "⟳"),
+      createElement("button", { className: "dsh-obs-mini", title: t("graphClose"), onClick: onClose }, "✕"),
+    );
+
+    let body;
+    if (loading) {
+      body = createElement("div", { className: "dsh-obs-graph-empty" }, t("graphLoading"));
+    } else if (error !== "") {
+      body = createElement("div", { className: "dsh-obs-graph-empty" }, t("graphError", { msg: error }));
+    } else if (plan.nodes.length === 0) {
+      body = createElement("div", { className: "dsh-obs-graph-empty" },
+        mode === "local" ? t("graphNoNote") : t("graphEmpty"));
+    } else {
+      const planById = new Map(plan.nodes.map((node) => [node.id, node]));
+      body = createElement("div", {
+        ref: wrapRef,
+        className: "dsh-obs-graph-canvas",
+        onWheel,
+        onMouseDown,
+        onMouseMove,
+        onMouseUp: endDrag,
+        onMouseLeave: endDrag,
+      },
+        createElement("svg", { className: "dsh-obs-graph-svg" },
+          createElement("g", { transform: `translate(${transform.x},${transform.y}) scale(${transform.s})` },
+            shown.edges.map((edge) => {
+              const a = planById.get(edge.source);
+              const b = planById.get(edge.target);
+              if (!a || !b) return null;
+              const active = neighbourSet !== null && (neighbourSet.has(edge.source) || neighbourSet.has(edge.target));
+              return createElement("line", {
+                key: `${edge.source}-${edge.target}`,
+                className: `dsh-obs-graph-edge${active ? " dsh-obs-graph-edge-on" : ""}`,
+                x1: a.x,
+                y1: a.y,
+                x2: b.x,
+                y2: b.y,
+              });
+            }),
+            plan.nodes.map((node) => {
+              const isTag = node.kind === "tag";
+              const radius = isTag ? 7 : 4 + Math.min(9, node.degree * 1.5);
+              const dim = neighbourSet !== null && !neighbourSet.has(node.id);
+              const cls = `dsh-obs-graph-node ${isTag ? "dsh-obs-graph-tag" : "dsh-obs-graph-note"}`
+                + `${node.id === hovered ? " dsh-obs-graph-sel" : ""}${dim ? " dsh-obs-graph-dim" : ""}`
+                + `${focusId !== null && node.id === focusId ? " dsh-obs-graph-focus" : ""}`;
+              const label = showAllLabels || node.degree >= 5 || node.id === hovered
+                ? fitLabel(node.label, 26)
+                : "";
+              return createElement("g", {
+                key: node.id,
+                className: cls,
+                transform: `translate(${node.x},${node.y})`,
+                onMouseEnter: () => setHovered(node.id),
+                onMouseLeave: () => setHovered(null),
+                onClick: (e) => {
+                  if (e && e.stopPropagation) e.stopPropagation();
+                  if (!isTag && onOpenNote) onOpenNote(node.path, node.label);
+                  else setHovered(node.id);
+                },
+              },
+                createElement(isTag ? "rect" : "circle", isTag
+                  ? { x: -radius, y: -radius, width: radius * 2, height: radius * 2, rx: 3 }
+                  : { r: radius }),
+                createElement("title", null, node.label),
+                label !== "" && createElement("text", { x: radius + 6, y: 4 }, label),
+              );
+            }),
+          ),
+        ),
+      );
+    }
+
+    const truncatedNote = plan.truncated ? t("graphTruncated", { n: plan.nodes.length }) : t("graphHint");
+    return createElement("div", {
+      className: "dsh-obs-graph",
+      role: "dialog",
+      "aria-label": t("graph"),
+    },
+      head,
+      body,
+      createElement("div", { className: "dsh-obs-graph-hint" }, truncatedNote),
+    );
+  }
+
+  /** shell.overlay 包装：只有 shared.graphOpen 时才挂载 GraphView（关闭即卸载）。 */
+  function GraphOverlay({ t }) {
+    const { graphOpen, openNote } = useShared();
+    if (!graphOpen) return null;
+    return createElement(GraphView, {
+      t,
+      currentNote: openNote,
+      onOpenNote: (rel, name) => patchShared({ openNote: { rel, name } }),
+      onClose: () => patchShared({ graphOpen: false }),
+    });
+  }
+
   // ── 右侧笔记 Dock（shell.overlay）──────────────────────────────────────────
 
   /**
@@ -3492,10 +3772,15 @@
         { name: "shell.overlay", id: "obsidian-prompt", order: 6, label: "Obsidian text prompt", locale: NS },
         Prompt,
       );
+      const d4 = ctx.slots.register(
+        { name: "shell.overlay", id: "obsidian-graph", order: 32, label: "Obsidian relation graph", locale: NS },
+        GraphOverlay,
+      );
       return () => {
         d1();
         d2();
         d3();
+        d4();
       };
     });
   }
