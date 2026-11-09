@@ -178,11 +178,10 @@
     wikilinkNotFound: "未找到笔记",
     error: "出错了",
     imageInserted: "已插入图片",
-    attachDir: "附件目录",
+    attachDir: "附件文件夹",
     attachDirPick: "选择附件目录（Vault 内）",
-    attachDirEdit: "手写附件目录",
-    attachDirClear: "清空（回到 Vault 根）",
-    attachDirPlaceholder: "Vault 相对路径，如 docs/images",
+    attachDirPlaceholder: "Vault 相对路径，如 attachments",
+    attachDirHint: "留空 = Vault 根目录，回车保存",
     imageRemoved: "已同步删除未引用的图片",
     attachDirConfirm: "更改截图落盘目录：{from} → {to}。会**自动把原目录下的截图移动到新目录**、删除原目录（若空），并同步更新笔记里的引用路径。确认更改？",
     attachSettings: "附件设置（位置 / 显示 / 清理）",
@@ -191,7 +190,9 @@
     attachMode_fixed: "固定目录",
     attachMode_note: "与笔记同目录",
     attachMode_sub: "笔记目录下子目录",
-    attachSubfolder: "子目录名（如 attachments）",
+    attachSubfolder: "子目录名称",
+    attachSubfolderPlaceholder: "如 attachments",
+    attachSubHint: "回车保存",
     attachHideDir: "隐藏图片目录（只含图片、没有笔记的目录）",
     attachDeleteOrphans: "保存笔记时自动删除无用附件（默认关）",
     migrated: "迁移 {n} 张截图，更新 {m} 篇笔记",
@@ -353,11 +354,10 @@
     wikilinkNotFound: "Note not found",
     error: "Error",
     imageInserted: "Image inserted",
-    attachDir: "Attachment dir",
+    attachDir: "Attachment folder",
     attachDirPick: "Choose attachment dir (inside vault)",
-    attachDirEdit: "Type an attachment dir",
-    attachDirClear: "Clear (back to vault root)",
-    attachDirPlaceholder: "Vault-relative path, e.g. docs/images",
+    attachDirPlaceholder: "Vault-relative path, e.g. attachments",
+    attachDirHint: "Empty = vault root; press Enter to save",
     imageRemoved: "Deleted unreferenced image(s)",
     attachDirConfirm: "Change screenshot dir: {from} → {to}. This will automatically move existing screenshots to the new dir, remove the old dir (if empty), and update note references. Continue?",
     attachSettings: "Attachment settings (location / visibility / cleanup)",
@@ -366,7 +366,9 @@
     attachMode_fixed: "Fixed folder",
     attachMode_note: "Same folder as note",
     attachMode_sub: "Subfolder under note",
-    attachSubfolder: "Subfolder name (e.g. attachments)",
+    attachSubfolder: "Subfolder name",
+    attachSubfolderPlaceholder: "e.g. attachments",
+    attachSubHint: "Press Enter to save",
     attachHideDir: "Hide image folders (folders without any notes)",
     attachDeleteOrphans: "Auto-delete orphaned attachments on save (off by default)",
     migrated: "moved {n} image(s), updated {m} note(s)",
@@ -742,6 +744,7 @@
     `.dsh-obs-ws-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:500}`,
     `.dsh-obs-mini{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer;font-size:14px;line-height:1;flex:none}`,
     `.dsh-obs-mini:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}`,
+    `.dsh-obs-mini.dsh-obs-on{background:var(--dsw-alias-interactive-bg-hover-accent);color:var(--dsw-alias-brand-primary)}`,
     // 行尾管理动作（工作区/会话 的 重命名 / 删除，常显）
     `.dsh-obs-actions{display:flex;align-items:center;gap:2px;flex:none}`,
     `.dsh-obs-actions button{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer;font-size:12px;line-height:1}`,
@@ -790,9 +793,21 @@
     `.dsh-obs-tree-head button{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 6px;border:0;border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;font-size:14px;line-height:1}`,
     `.dsh-obs-tree-head button:hover{background:var(--dsw-alias-interactive-bg-hover)}`,
     `.dsh-obs-tree-head button.dsh-obs-on{background:var(--dsw-alias-interactive-bg-hover-accent);color:var(--dsw-alias-brand-primary)}`,
-    `.dsh-obs-attachcfg{display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:2px 6px 6px}`,
-    `.dsh-obs-attachcfg input:not([type=checkbox]){flex:1;min-width:110px;height:24px;padding:0 6px;border:1px solid var(--dsw-alias-border-l1);border-radius:6px;background:transparent;color:var(--dsw-alias-label-primary);font-size:12px}`,
-    `.dsh-obs-cfgline{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--dsw-alias-label-secondary);cursor:pointer}`,
+    // 附件设置面板：窄侧边栏里的表单卡片。位置模式用下拉框，四个中文标签都能整行放下；
+    // 旧版把四个标签塞进 24×24 的图标按钮，汉字被挤成一列，盖住下面的输入框和开关。
+    `.dsh-obs-attachcfg{display:flex;flex-direction:column;gap:8px;margin:2px 4px 8px;padding:8px 8px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:9px;background:var(--dsw-alias-interactive-bg-hover)}`,
+    `.dsh-obs-field{display:flex;flex-direction:column;gap:4px;min-width:0}`,
+    `.dsh-obs-field-label{font-size:11px;line-height:15px;color:var(--dsw-alias-label-tertiary)}`,
+    `.dsh-obs-select{width:100%;height:28px;padding:0 28px 0 8px;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background-color:transparent;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%2381858C' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;background-size:12px 12px;color:var(--dsw-alias-label-primary);font-size:12px;line-height:26px;appearance:none;outline:none;cursor:pointer}`,
+    `.dsh-obs-select:focus{border-color:var(--dsw-alias-brand-primary)}`,
+    `.dsh-obs-inputrow{display:flex;align-items:center;gap:4px;min-width:0}`,
+    `.dsh-obs-inputrow input{flex:1;min-width:0;height:28px;padding:0 8px;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:transparent;color:var(--dsw-alias-label-primary);font-size:12px;outline:none}`,
+    `.dsh-obs-inputrow input:focus{border-color:var(--dsw-alias-brand-primary)}`,
+    `.dsh-obs-inputrow .dsh-obs-mini{width:26px;height:26px;border:1px solid var(--dsw-alias-border-l2)}`,
+    `.dsh-obs-hint{font-size:11px;line-height:15px;color:var(--dsw-alias-label-tertiary)}`,
+    `.dsh-obs-checks{display:flex;flex-direction:column;gap:6px;padding-top:2px}`,
+    `.dsh-obs-cfgline{display:flex;align-items:flex-start;gap:6px;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-secondary);cursor:pointer;user-select:none}`,
+    `.dsh-obs-cfgline input[type=checkbox]{flex:none;margin:2px 0 0;cursor:pointer}`,
     `.dsh-obs-root-row{display:flex;align-items:center;gap:6px;padding:4px 10px;font-size:11px;color:var(--dsw-alias-label-tertiary)}`,
     `.dsh-obs-root-row .dsh-obs-root-path{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}`,
     `.dsh-obs-root-row .dsh-obs-mini,.dsh-obs-row .dsh-obs-mini{flex:none;width:22px;height:22px}`,
@@ -1056,7 +1071,14 @@
 
   function injectCss() {
     if (typeof document === "undefined") return;
-    if (document.querySelector('style[data-plugin-css="dsh-obsidian-vault/core.css"]')) return;
+    // 已注入过就只更新内容：插件被 HMR 重新装载时 apply() 会再跑一遍，旧实现直接
+    // return，页面会继续用上一次的 CSS —— 新加的类名没有样式，界面半新半旧，只能
+    // 整页刷新才正常。
+    const existing = document.querySelector('style[data-plugin-css="dsh-obsidian-vault/core.css"]');
+    if (existing !== null) {
+      if (existing.textContent !== CSS) existing.textContent = CSS;
+      return;
+    }
     const tag = document.createElement("style");
     tag.dataset.plugin = "dsh-obsidian-vault";
     tag.dataset.pluginCss = "dsh-obsidian-vault/core.css";
@@ -1310,6 +1332,7 @@
     const [attachDir, setAttachDirState] = useState(null);
     const [attachOpen, setAttachOpen] = useState(false);
     const [attachInput, setAttachInput] = useState("");
+    const [attachSubInput, setAttachSubInput] = useState("");
     // 附件位置模式 / 子目录 / 两个开关（对齐 Obsidian 的附件位置设置）
     const [attachCfg, setAttachCfg] = useState(null);
 
@@ -1358,6 +1381,14 @@
     useEffect(() => {
       void loadRoot();
     }, [loadRoot, vaultRev]);
+
+    // 面板每次打开都把输入框填成当前设置：旧版只有铅笔按钮会带值，点齿轮打开时
+    // 输入框是空的，看起来像「设置丢了」。
+    useEffect(() => {
+      if (!attachOpen) return;
+      setAttachInput(typeof attachDir === "string" ? attachDir : "");
+      setAttachSubInput(attachCfg !== null ? attachCfg.subfolder : "attachments");
+    }, [attachOpen]);
 
     const toggleDir = useCallback(async (rel) => {
       const willOpen = !expanded.has(rel);
@@ -1660,63 +1691,85 @@
           onClick: (e) => { e.stopPropagation(); patchShared({ graphOpen: true }); },
         }, "↗"),
       ),
-      rootInfo && rootInfo.exists && attachDir !== null && createElement("div", { className: "dsh-obs-root-row", title: t("attachSettings") },
+      rootInfo && rootInfo.exists && attachDir !== null && createElement("div", {
+        className: "dsh-obs-root-row",
+        title: `${t("attachLocation")}: ${attachLocationLabel(attachCfg, attachDir, t)}`,
+      },
         createElement("span", { className: "dsh-obs-root-path" },
           `📎 ${t("attachLocation")}: ${attachLocationLabel(attachCfg, attachDir, t)}`),
-        attachCfg !== null && attachCfg.mode === "fixed" && createElement("button", {
-          className: "dsh-obs-mini",
-          title: t("attachDirPick"),
-          onClick: (e) => { e.stopPropagation(); void pickAttachDir(); },
-        }, "📂"),
-        attachCfg !== null && attachCfg.mode === "fixed" && createElement("button", {
-          className: "dsh-obs-mini",
-          title: t("attachDirEdit"),
-          onClick: (e) => { e.stopPropagation(); setAttachInput(attachDir); setAttachOpen((v) => !v); },
-        }, "✎"),
         createElement("button", {
-          className: "dsh-obs-mini",
+          className: `dsh-obs-mini${attachOpen ? " dsh-obs-on" : ""}`,
           title: t("attachSettings"),
+          "aria-expanded": attachOpen === true,
           onClick: (e) => { e.stopPropagation(); setAttachOpen((v) => !v); },
         }, "⚙"),
       ),
-      // 附件设置面板：位置模式（Obsidian 的四种）+ 子目录名 + 两个开关
+      // 附件设置面板：窄侧边栏里当表单排（下拉框 + 输入行 + 开关），长标签整行放得下
       attachOpen && rootInfo && rootInfo.exists && attachCfg !== null && createElement("div", { className: "dsh-obs-attachcfg" },
-        ...["root", "fixed", "note", "sub"].map((m) => createElement("button", {
-          key: m,
-          className: `dsh-obs-mini${attachCfg.mode === m ? " dsh-obs-on" : ""}`,
-          title: t(`attachMode_${m}`),
-          onClick: (e) => { e.stopPropagation(); void applyAttachSettings({ mode: m }); },
-        }, t(`attachMode_${m}`))),
-        attachCfg.mode === "fixed" && createElement("input", {
-          autoFocus: true,
-          placeholder: t("attachDirPlaceholder"),
-          value: attachInput,
-          onChange: (e) => setAttachInput(e.target.value),
-          onKeyDown: (e) => {
-            if (e.key === "Enter") void applyAttachDir(attachInput);
-            if (e.key === "Escape") setAttachOpen(false);
+        createElement("label", { className: "dsh-obs-field" },
+          createElement("span", { className: "dsh-obs-field-label" }, t("attachLocation")),
+          createElement("select", {
+            className: "dsh-obs-select",
+            value: attachCfg.mode,
+            onChange: (e) => { void applyAttachSettings({ mode: e.target.value }); },
           },
-        }),
-        attachCfg.mode === "sub" && createElement("input", {
-          placeholder: t("attachSubfolder"),
-          defaultValue: attachCfg.subfolder,
-          onKeyDown: (e) => { if (e.key === "Enter") void applyAttachSettings({ subfolder: e.target.value }); },
-        }),
-        createElement("label", { className: "dsh-obs-cfgline" },
-          createElement("input", {
-            type: "checkbox",
-            checked: attachCfg.hideDir,
-            onChange: (e) => { e.stopPropagation(); void applyAttachSettings({ hideAttachmentDir: e.target.checked === true }); },
-          }),
-          t("attachHideDir"),
+            ["root", "fixed", "note", "sub"].map((m) => createElement("option", { key: m, value: m }, t(`attachMode_${m}`))),
+          ),
         ),
-        createElement("label", { className: "dsh-obs-cfgline" },
-          createElement("input", {
-            type: "checkbox",
-            checked: attachCfg.deleteOrphans,
-            onChange: (e) => { e.stopPropagation(); void applyAttachSettings({ deleteOrphanAttachments: e.target.checked === true }); },
-          }),
-          t("attachDeleteOrphans"),
+        attachCfg.mode === "fixed" && createElement("div", { className: "dsh-obs-field" },
+          createElement("span", { className: "dsh-obs-field-label" }, t("attachDir")),
+          createElement("div", { className: "dsh-obs-inputrow" },
+            createElement("input", {
+              "aria-label": t("attachDir"),
+              placeholder: t("attachDirPlaceholder"),
+              value: attachInput,
+              onChange: (e) => setAttachInput(e.target.value),
+              onKeyDown: (e) => {
+                if (e.key === "Enter") void applyAttachDir(attachInput);
+                if (e.key === "Escape") setAttachOpen(false);
+              },
+            }),
+            createElement("button", {
+              className: "dsh-obs-mini",
+              title: t("attachDirPick"),
+              onClick: (e) => { e.stopPropagation(); void pickAttachDir(); },
+            }, "📂"),
+          ),
+          createElement("span", { className: "dsh-obs-hint" }, t("attachDirHint")),
+        ),
+        attachCfg.mode === "sub" && createElement("div", { className: "dsh-obs-field" },
+          createElement("span", { className: "dsh-obs-field-label" }, t("attachSubfolder")),
+          createElement("div", { className: "dsh-obs-inputrow" },
+            createElement("input", {
+              "aria-label": t("attachSubfolder"),
+              placeholder: t("attachSubfolderPlaceholder"),
+              value: attachSubInput,
+              onChange: (e) => setAttachSubInput(e.target.value),
+              onKeyDown: (e) => {
+                if (e.key === "Enter") void applyAttachSettings({ subfolder: attachSubInput });
+                if (e.key === "Escape") setAttachOpen(false);
+              },
+            }),
+          ),
+          createElement("span", { className: "dsh-obs-hint" }, t("attachSubHint")),
+        ),
+        createElement("div", { className: "dsh-obs-checks" },
+          createElement("label", { className: "dsh-obs-cfgline" },
+            createElement("input", {
+              type: "checkbox",
+              checked: attachCfg.hideDir,
+              onChange: (e) => { e.stopPropagation(); void applyAttachSettings({ hideAttachmentDir: e.target.checked === true }); },
+            }),
+            createElement("span", null, t("attachHideDir")),
+          ),
+          createElement("label", { className: "dsh-obs-cfgline" },
+            createElement("input", {
+              type: "checkbox",
+              checked: attachCfg.deleteOrphans,
+              onChange: (e) => { e.stopPropagation(); void applyAttachSettings({ deleteOrphanAttachments: e.target.checked === true }); },
+            }),
+            createElement("span", null, t("attachDeleteOrphans")),
+          ),
         ),
       ),
       body,
