@@ -104,6 +104,52 @@ const edges = [
   check("局部跳数：5 跳覆盖整条链", size(5) === 6, String(size(5)));
 }
 
+// ── 聚焦模式镜头（全库不裁剪，视口推近当前笔记 + 一跳邻居）─────────────────
+{
+  // 手摆坐标，让断言能写成确定数字：A 为中心，B/C 是一跳邻居，D 离得很远
+  const plan = {
+    width: 1000,
+    height: 800,
+    nodes: [
+      { id: "note:A", x: 500, y: 300 },
+      { id: "note:B", x: 400, y: 300 },
+      { id: "note:C", x: 600, y: 300 },
+      { id: "note:D", x: 900, y: 700 },
+    ],
+  };
+  const focusEdges = [
+    { source: "note:A", target: "note:B" },
+    { source: "note:A", target: "note:C" },
+  ];
+  const viewport = { width: 900, height: 560 };
+  // 邻居包围盒 x∈[400,600]、y=300，加 80 留白 → 360×160，推近倍数被 maxScale 1.6 封顶
+  const framed = graphModule.focusViewport(plan, focusEdges, "note:A", viewport);
+  check("聚焦镜头返回有限平移/缩放", framed !== null && Number.isFinite(framed.x) && Number.isFinite(framed.y) && Number.isFinite(framed.s),
+    JSON.stringify(framed));
+  check("聚焦镜头推近倍数封顶在 maxScale", framed !== null && framed.s === 1.6, String(framed?.s));
+  const screenX = (node) => framed.x + node.x * framed.s;
+  check("聚焦镜头把当前笔记与邻居的包围盒放在视口正中",
+    Math.abs((framed.x + 500 * framed.s) - 450) < 0.001 && Math.abs((framed.y + 300 * framed.s) - 280) < 0.001,
+    `bbox 中心=(${framed.x + 500 * framed.s},${framed.y + 300 * framed.s})`);
+  check("聚焦不裁剪节点：远处节点被推出视口而不是从布局里删掉",
+    plan.nodes.length === 4 && screenX(plan.nodes[3]) > viewport.width,
+    `D.x=${screenX(plan.nodes[3])}`);
+  const oneHop = graphModule.focusViewport(plan, focusEdges, "note:B", viewport);
+  check("聚焦镜头只用一跳邻居（B 的中心是 A，不含 C）",
+    oneHop !== null && oneHop.s === 1.6 && Math.abs((oneHop.x + 450 * oneHop.s) - 450) < 0.001,
+    JSON.stringify(oneHop));
+  check("焦点不在布局里时返回 null（调用方退回整图适配）",
+    graphModule.focusViewport(plan, focusEdges, "note:missing", viewport) === null);
+  const isolated = { width: 900, height: 560, nodes: [{ id: "note:S", x: 300, y: 200 }] };
+  const solo = graphModule.focusViewport(isolated, [], "note:S", viewport);
+  check("孤立笔记：镜头居中且不糊脸（封顶 maxScale）",
+    solo !== null && solo.s === 1.6
+      && Math.abs(solo.x + 300 * solo.s - 450) < 0.001 && Math.abs(solo.y + 200 * solo.s - 280) < 0.001,
+    JSON.stringify(solo));
+  const capped = graphModule.focusViewport(plan, focusEdges, "note:A", viewport, { maxScale: 1 });
+  check("maxScale 可下调", capped !== null && capped.s === 1, String(capped?.s));
+}
+
 const failed = checks.filter((c) => !c.cond);
 if (failed.length > 0) {
   console.error(`\n${failed.length} 条图谱布局断言失败：${failed.map((c) => c.name).join(" | ")}`);

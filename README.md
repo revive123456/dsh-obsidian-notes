@@ -20,8 +20,8 @@ A local-first Markdown notes panel that sits in the DSH sidebar and hands notes
 to the chat without copy-paste:
 
 1. **Your notes stay beside the conversation.** Point it at a folder of Markdown
-   files and you get the vault tree, a line-numbered Obsidian-flavoured preview,
-   edit/save, and search across titles and bodies — no import, no sync, no cloud.
+   files and you get the vault tree, an Obsidian-flavoured preview, edit/save,
+   and search across titles and bodies — no import, no sync, no cloud.
 2. **The handoff is the feature.** Cite a whole note as an `@path` mention, or
    select a passage and press **Ask** — the prompt in the composer carries the
    absolute path, the line range and the quoted text, so the model can refer to
@@ -31,15 +31,16 @@ to the chat without copy-paste:
    `![[Pasted image …]]` embed; moving that folder later rewrites the embeds.
 4. **Two ways to see the shape of a vault.** Turn a note into a **mind map**
    built from its headings and list items, or open the **relation graph**
-   computed from `[[links]]` and `#tags` — vault-wide, or locally around the open
-   note with 1–5 hops.
+   computed from `[[links]]` and `#tags` — vault-wide, locally around the open
+   note with 1–5 hops, or focused: the whole graph with the camera framed on the
+   open note and its neighbours.
 
 Everything runs on your machine: the plugin reads and writes only the folder you
 choose, and the client talks to the host over its own loopback routes.
 
 ## Screenshots
 
-| Notes tree + docked preview | Callouts, line numbers, badges |
+| Notes tree + docked preview | Callouts, inline syntax, badges |
 | --- | --- |
 | ![Sidebar notes tree with the preview dock open](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-sidebar.png) | ![Coloured Obsidian callouts with one source line per rendered line](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-callouts.png) |
 
@@ -128,26 +129,28 @@ The default vault is `$DSH_WORKSPACE/obsidian_vault`, falling back to
 ### Typical workflow
 
 1. Open **📚 Notes** and pick a vault (above).
-2. Click a note to read the line-numbered preview; **Edit** to change it, then
-   **Save** or <kbd>Ctrl/Cmd+S</kbd>.
+2. Click a note to read the preview; **Edit** to change it, then **Save** or
+   <kbd>Ctrl/Cmd+S</kbd>.
 3. To bring a note into the chat, press **⤴ Cite to chat** for the whole note, or
    select text and press **Ask** to attach a question to that passage.
 4. Paste a screenshot while editing to store it in the vault.
 5. Switch the dock to **🧠 Mind map** to explore the note's structure, or open
    **🕸 Graph view** above the tree to see the vault as a graph (**Local** = around
-   the open note, **Depth 1–5**).
+   the open note, **Depth 1–5**; **Focus** = whole graph, camera on the open note).
 
 ## Features
 
 - **Vault sidebar** — lazy directory tree; open a note with one click, create,
   rename or delete notes and folders, and search titles **and** file contents.
   Shows a live note count.
-- **Line-numbered Obsidian preview** — every source line keeps its line number.
-  Real tables with alignment, fenced code with language labels, nested lists and
-  task lists, all heading levels, setext headings, horizontal rules, and
-  clickable `[[wikilinks]]` (aliases and `#sections` included). Inline Obsidian
-  styles render too: `==highlight==`, `~~strikethrough~~`, backslash escapes,
-  hidden `%%comments%%`, and `<https://…>` / bare URLs as links.
+- **Obsidian-style preview** — every source line renders as its own row, so
+  tables, fenced code, nested lists and callouts line up the way they do in
+  Obsidian. Line numbers stay out of the reading view and show only while you
+  edit. Real tables with alignment, fenced code with language labels, nested
+  lists and task lists, all heading levels, setext headings, horizontal rules,
+  and clickable `[[wikilinks]]` (aliases and `#sections` included). Inline
+  Obsidian styles render too: `==highlight==`, `~~strikethrough~~`, backslash
+  escapes, hidden `%%comments%%`, and `<https://…>` / bare URLs as links.
 - **Graph view** — a vault-wide relation graph built from every note's `[[links]]`
   and `#tags` (no graph file, no export step: it is computed from your Markdown on
   the fly, like Obsidian's own graph). A vault-level entry above the note tree
@@ -155,7 +158,8 @@ The default vault is `$DSH_WORKSPACE/obsidian_vault`, falling back to
   neighbours, click a note to open it in the dock. **Local** shows the
   neighbourhood of the note that is currently open; the depth is adjustable
   from 1 to 5 hops (same range as Obsidian's local graph depth slider, default
-  1), and **Focus current note** jumps from the vault view straight to it.
+  1). **Focus** keeps the whole graph but frames the open note and its
+  neighbours — click it again to re-centre.
 - **Mind map view** — toggle the preview into a horizontal mind map built from the
   note's headings and list items. Scroll to zoom, drag to pan; select a node to
   jump to its source line, or insert that whole branch (node + descendants) into
@@ -287,7 +291,7 @@ Repository layout:
 | --- | --- |
 | `src/index.js` | Host half: `/obsidian/*` routes, path containment, attachment migration |
 | `src/client.js` | Browser half: sidebar, notes tree, preview dock, session/workspace UI |
-| `src/markdown.js` | Zero-dependency line-numbered Markdown renderer |
+| `src/markdown.js` | Zero-dependency Markdown renderer (one row per source line) |
 | `src/vault-store.js` | Vault + attachment settings persistence |
 | `src/session-store.js` | Session log discovery and deletion |
 | `lib/client.js` | Build artifact (gitignored; produced by `npm run build`) |

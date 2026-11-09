@@ -202,6 +202,57 @@ const graphModule = (() => {
   }
 
 
+  /**
+   * 「聚焦」模式的镜头：全库不裁剪，只把视口对准某篇笔记和它的一跳邻居。
+   *
+   * 和 localSubgraph 的分工：局部是「只留这块节点」，聚焦是「节点都在，镜头对准这块」。
+   * 输入是 layoutGraph 的布局坐标与画布像素尺寸，输出直接可用的 SVG 平移/缩放。
+   *
+   * @param plan - `layoutGraph()` 的返回值（nodes 带 x/y）。
+   * @param edges - 与 `plan.nodes` 对应的连线（`[{ source, target }]`）。
+   * @param focusId - 焦点节点 id（笔记节点是 `note:<rel>`）。
+   * @param viewport - `{ width, height }` 画布像素尺寸。
+   * @param options - `{ padding, maxScale }`：padding 为布局坐标里的留白（默认 80），
+   *   maxScale 限制推近倍数（默认 1.6，邻居很少时不至于糊脸）。
+   * @returns `{ x, y, s }`；焦点不在布局里时返回 null（调用方退回整图适配）。
+   */
+  function focusViewport(plan, edges, focusId, viewport, options = {}) {
+    const nodes = plan && Array.isArray(plan.nodes) ? plan.nodes : [];
+    const center = nodes.find((node) => node.id === focusId);
+    if (center === undefined) return null;
+    const near = new Set([focusId]);
+    for (const edge of edges ?? []) {
+      if (edge.source === focusId) near.add(edge.target);
+      else if (edge.target === focusId) near.add(edge.source);
+    }
+    let minX = center.x;
+    let maxX = center.x;
+    let minY = center.y;
+    let maxY = center.y;
+    for (const node of nodes) {
+      if (!near.has(node.id)) continue;
+      if (node.x < minX) minX = node.x;
+      if (node.x > maxX) maxX = node.x;
+      if (node.y < minY) minY = node.y;
+      if (node.y > maxY) maxY = node.y;
+    }
+    const padding = options.padding ?? 80;
+    const maxScale = options.maxScale ?? 1.6;
+    const width = viewport && Number.isFinite(viewport.width) ? viewport.width : 900;
+    const height = viewport && Number.isFinite(viewport.height) ? viewport.height : 560;
+    // 单点邻居（焦点没有连线）时包围盒是 0×0，+padding 后仍可算；max(1) 只为除零兜底
+    const boxW = Math.max(1, maxX - minX + padding * 2);
+    const boxH = Math.max(1, maxY - minY + padding * 2);
+    const raw = Math.min((width - 30) / boxW, (height - 30) / boxH, maxScale);
+    const scale = Math.max(0.18, raw);
+    return {
+      x: width / 2 - ((minX + maxX) / 2) * scale,
+      y: height / 2 - ((minY + maxY) / 2) * scale,
+      s: scale,
+    };
+  }
+
+
   /** POSIX 风格拼接 + 折叠 `.`/`..`（客户端兜底构建时与 host 同一套链接解析）。 */
   function joinPosix(dir, rel) {
     const parts = dir === "" ? [] : dir.split("/");
@@ -344,5 +395,5 @@ const graphModule = (() => {
     return [...tags];
   }
 
-  return { layoutGraph, localSubgraph, adjacency, rng, resolveGraphLink, buildGraphFromNotes, extractTags };
+  return { layoutGraph, localSubgraph, focusViewport, adjacency, rng, resolveGraphLink, buildGraphFromNotes, extractTags };
 })();

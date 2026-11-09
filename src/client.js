@@ -123,7 +123,7 @@
     graphHint: "滚轮缩放 · 拖动平移 · 点击笔记打开 · 悬停看邻居",
     graphGlobal: "全库",
     graphLocal: "局部",
-    graphLocalHint: "以当前打开的笔记为中心显示 2 跳邻居",
+    graphLocalHint: "以当前打开的笔记为中心显示邻居（跳数可调）",
     graphRefresh: "重新读取 vault",
     graphRerun: "重新布局",
     graphClose: "关闭图谱",
@@ -140,7 +140,7 @@
     graphErrorTitle: "关系图谱加载失败",
     graphBuilding: "正在从笔记构建图谱（{done}/{total}）…",
     graphFocus: "聚焦",
-    graphFocusHint: "一键切到以当前打开笔记为中心的局部图谱（局部模式下再点 = 重新居中）",
+    graphFocusHint: "把镜头对准当前打开笔记：保留全库，把笔记和它的一跳邻居框进画面（再点 = 重新居中）",
     graphLegendNote: "笔记",
     graphLegendTag: "标签",
     graphLegendFocus: "当前笔记",
@@ -299,7 +299,7 @@
     graphHint: "Scroll to zoom · drag to pan · click a note to open it · hover to see neighbours",
     graphGlobal: "Vault",
     graphLocal: "Local",
-    graphLocalHint: "Show the 2-hop neighbourhood of the note that is open",
+    graphLocalHint: "Show the open note's neighbourhood (depth adjustable)",
     graphRefresh: "Re-read the vault",
     graphRerun: "Re-run the layout",
     graphClose: "Close the graph",
@@ -316,7 +316,7 @@
     graphErrorTitle: "The graph view failed to load",
     graphBuilding: "Building the graph from notes ({done}/{total})…",
     graphFocus: "Focus",
-    graphFocusHint: "Jump to the local graph centred on the open note (click again to re-centre)",
+    graphFocusHint: "Aim the camera at the open note: keep the whole graph, frame the note and its neighbours (click again to re-centre)",
     graphLegendNote: "note",
     graphLegendTag: "tag",
     graphLegendFocus: "current note",
@@ -841,6 +841,13 @@
     `.dsh-obs-md-row{display:flex;align-items:flex-start;gap:10px}`,
     `.dsh-obs-md-ln{flex:none;min-width:2ch;text-align:right;color:var(--dsw-alias-label-tertiary);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.7;user-select:none;-webkit-user-select:none}`,
     `.dsh-obs-md-lc{flex:1;min-width:0}`,
+    // 只读预览不显示行号。行号节点留在 DOM 里但收成零宽、visibility:hidden：
+    // 一是空源码行还要靠它的行高撑住段落间距；二是 data-line 仍供思维导图跳行，
+    // 选区反查脚本行号走的是 .dsh-obs-src 偏移，和行号节点无关。
+    // 编辑态的行号走 .dsh-obs-editor-gutter，不受这三条影响。
+    `.dsh-obs-dock-body .dsh-obs-md .dsh-obs-md-row{gap:0}`,
+    `.dsh-obs-dock-body .dsh-obs-md .dsh-obs-md-ln{width:0;min-width:0;overflow:hidden;visibility:hidden}`,
+    `.dsh-obs-dock-body .dsh-obs-md .dsh-obs-md-tln{display:none}`,
     `.dsh-obs-dock-body .dsh-obs-md-row .dsh-obs-md-lc p,.dsh-obs-dock-body .dsh-obs-md-row .dsh-obs-md-lc h1,.dsh-obs-dock-body .dsh-obs-md-row .dsh-obs-md-lc h2,.dsh-obs-dock-body .dsh-obs-md-row .dsh-obs-md-lc h3,.dsh-obs-dock-body .dsh-obs-md-row .dsh-obs-md-lc h4,.dsh-obs-dock-body .dsh-obs-md-row .dsh-obs-md-lc h5,.dsh-obs-dock-body .dsh-obs-md-row .dsh-obs-md-lc h6,.dsh-obs-dock-body .dsh-obs-md-row .dsh-obs-md-lc blockquote{margin:0;padding:0}`,
     `.dsh-obs-md-row.dsh-obs-md-heading .dsh-obs-md-lc{font-weight:600}`,
     // 行内 Obsidian 语法：==高亮== / ~~删除线~~ / 裸链接与自动链接
@@ -2787,7 +2794,8 @@
 
   /**
    * 关系图谱视图：全库 .md + [[双链]] + 标签（host `/obsidian/graph` 计算，
-   * 力导向布局在 src/graph.js）。可切到「局部」= 当前打开笔记的 2 跳邻居。
+   * 力导向布局在 src/graph.js）。「局部」= 当前打开笔记周围 1–5 跳邻居；
+   * 「聚焦」保留全库，只把镜头对准当前笔记。
    */
   function GraphView({ t, currentNote, onOpenNote, onClose }) {
     const [data, setData] = useState(null);
@@ -2959,28 +2967,46 @@
     const currentRel = currentNote && currentNote.rel ? currentNote.rel : null;
     const focusId = currentRel !== null ? `note:${currentRel}` : null;
     const localAvailable = data !== null && focusId !== null && data.nodes.some((node) => node.id === focusId);
+    // 全库数据只包一次：全库 ↔ 聚焦之间切换不重跑力导向布局（同一 seed 结果一样，重跑一遍纯属浪费）
+    const fullGraph = useMemo(
+      () => (data === null ? { nodes: [], edges: [] } : { nodes: data.nodes, edges: data.edges }),
+      [data],
+    );
     const shown = useMemo(() => {
-      if (data === null) return { nodes: [], edges: [] };
-      if (mode === "local" && localAvailable) {
+      if (mode === "local" && localAvailable && data !== null) {
         const sub = graphModule.localSubgraph(data, focusId, localDepth);
         return { nodes: sub.nodes, edges: sub.edges };
       }
-      return { nodes: data.nodes, edges: data.edges };
-    }, [data, mode, localAvailable, focusId, localDepth]);
+      return fullGraph;
+    }, [fullGraph, data, mode, localAvailable, focusId, localDepth]);
     const plan = useMemo(
       () => graphModule.layoutGraph(shown.nodes, shown.edges, { seed, maxNodes: 420 }),
       [shown, seed],
     );
 
-    // 打开 / 切换范围 / 重新布局后把整张图适配进画布
+    // 打开 / 切换范围 / 重新布局后摆好镜头：全库与局部把整张图适配进画布；
+    // 聚焦模式保留全库，但把镜头对准当前笔记：笔记和它的一跳邻居框进画面（不裁节点）。
     useEffect(() => {
       const el = wrapRef.current;
       if (!el || plan.nodes.length === 0) return;
       const w = el.clientWidth || 900;
       const h = el.clientHeight || 560;
+      if (mode === "focus") {
+        const framed = graphModule.focusViewport(plan, shown.edges, focusId, { width: w, height: h });
+        if (framed !== null) {
+          setTransform(framed);
+          return;
+        }
+      }
       const fit = Math.min((w - 30) / plan.width, (h - 30) / plan.height, 1);
       setTransform({ x: (w - plan.width * fit) / 2, y: (h - plan.height * fit) / 2, s: fit });
-    }, [plan, fitKey]);
+    }, [plan, fitKey, mode, focusId, shown.edges]);
+
+    // 当前笔记被关掉 / 从图里消失后，局部与聚焦都没有中心：退回全库，
+    // 否则会留下一个「按不动却亮着」的分段按钮。
+    useEffect(() => {
+      if (!localAvailable && (mode === "local" || mode === "focus")) setMode("global");
+    }, [localAvailable, mode]);
 
     const onWheel = useCallback((e) => {
       if (plan.nodes.length === 0) return;
@@ -3102,10 +3128,11 @@
             disabled: !localAvailable,
             title: localAvailable ? t("graphLocalHint") : t("graphNoNote"),
           }),
-          modeButton(t("graphFocus"), false, () => {
+          modeButton(t("graphFocus"), mode === "focus", () => {
             if (!localAvailable) return;
-            setMode("local");
-            setFitKey((v) => v + 1);
+            // 聚焦是独立模式（全库图 + 镜头对准当前笔记）：再点一次 = 重新居中
+            if (mode === "focus") setFitKey((v) => v + 1);
+            else setMode("focus");
           }, {
             disabled: !localAvailable,
             title: localAvailable ? t("graphFocusHint") : t("graphNoNote"),
