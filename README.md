@@ -40,7 +40,7 @@ choose, and the client talks to the host over its own loopback routes.
 
 ## Screenshots
 
-| Notes tree + docked preview | Callouts, inline syntax, badges |
+| Notes tree + docked preview | Callouts, task lists, badges |
 | --- | --- |
 | ![Sidebar notes tree with the preview dock open](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-sidebar.png) | ![Coloured Obsidian callouts with one source line per rendered line](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-callouts.png) |
 
@@ -48,7 +48,7 @@ choose, and the client talks to the host over its own loopback routes.
 | --- | --- |
 | ![Table with column alignment and a TypeScript code fence](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-markdown.png) | ![Editor with line numbers and Save button](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-editing.png) |
 
-| Mind map from headings + lists | Vault-wide graph view (notes, links, tags) |
+| Mind map from headings + lists | Vault-wide graph — Vault / Local / Focus |
 | --- | --- |
 | ![Mind map view built from the note headings and list items](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-mindmap.png) | ![Relation graph of the whole vault: notes as circles, tags as squares, links as lines](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-graph.png) |
 

@@ -1,7 +1,7 @@
 # Callout gallery
 
 Obsidian callouts are `> [!type] Optional title` blocks. The preview keeps one
-source line per rendered line (line numbers on the left) and draws the coloured
+source line per rendered line and draws the coloured
 callout spine across all lines of the block.
 
 > [!note] A note with an explicit title
@@ -25,7 +25,7 @@ callout spine across all lines of the block.
 > Nothing exploded.
 
 > [!question] Question / help / faq
-> Why are there line numbers on every preview? So a quote can cite an exact line.
+> Why does every source line get its own row? So a quote can cite an exact line.
 
 > [!warning] Warning / caution / attention
 > Watch the attachment folder before moving it.

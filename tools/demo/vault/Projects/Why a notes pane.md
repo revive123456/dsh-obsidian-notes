@@ -8,7 +8,7 @@ Obsidian vault uses — and renders it next to the conversation.
 
 1. **Your files stay yours.** Plain `.md`, no database, no import step.
 2. **The chat can read them.** Cite a whole note or a selection; the assistant
-   receives the path, the line numbers and the text.
+   receives the path, the line range and the text.
 3. **Nothing leaves the machine.** The host serves the vault over local routes;
    there is no telemetry and no outbound request.
 

@@ -24,9 +24,9 @@ const PORT = Number(portArg > 0 ? process.argv[portArg + 1] : process.env.MOCK_L
 const HOST = "127.0.0.1";
 
 const ANSWER =
-  "Every source line is rendered as its own row, and the gutter on the left carries the line number. " +
-  "That is why a selection can still point at an exact line when it is handed to the chat: the path, " +
-  "the line range and the quoted text travel together with your question.";
+  "Every source line is rendered as its own row, so tables, fenced code and callouts keep the layout they have in Obsidian. " +
+  "A selection still points at an exact line when it is handed to the chat: the path, the line range and the quoted text " +
+  "travel together with your question.";
 
 function flatten(content) {
   const parts = Array.isArray(content) ? content : [content];
@@ -38,7 +38,7 @@ function flatten(content) {
 /** The reply the gallery question should produce; other prompts get a short honest line. */
 function replyFor(messages) {
   const system = messages.find((m) => m?.role === "system");
-  if (/Create a concise title/i.test(flatten(system?.content))) return "Line numbers in preview";
+  if (/Create a concise title/i.test(flatten(system?.content))) return "One row per source line";
   const userText = messages.filter((m) => m?.role === "user").map((m) => flatten(m.content)).join("\n");
   if (/line numbers?|行号|line number/i.test(userText)) return ANSWER;
   if (/read a note/i.test(userText)) return "Sure — open the note you are reading and ask me about any line; I will explain it with the passage you select.";

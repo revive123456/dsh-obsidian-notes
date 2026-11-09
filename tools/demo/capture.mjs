@@ -498,7 +498,7 @@ async function shots(page) {
   await openNote(page, "Callout gallery");
   await page.scroll(SEL.dockBody, 340);
   await sleep(700);
-  await page.selectText(SEL.src, "Why are there line numbers on every preview");
+  await page.selectText(SEL.src, "Why does every source line get its own row");
   await page.waitFor(`!!document.querySelector(${JSON.stringify(SEL.askbar)})`, { timeout: 5000, label: "ask bar" });
   await page.click(`${SEL.askbar} button`, "Ask");
   await page.waitFor(`!!document.querySelector(".dsh-obs-askta")`, { label: "ask popup" });
@@ -508,7 +508,7 @@ async function shots(page) {
     ta.selectionStart = ta.selectionEnd = ta.value.length;
     return true;
   })()`);
-  await page.type("Where does the line number come from?", { delay: 25 });
+  await page.type("Why does each source line get its own row?", { delay: 25 });
   await sleep(700);
   await dockShot("screenshot-ask.png");
 }
@@ -561,7 +561,7 @@ async function record(page) {
   await sleep(900);
 
   // 3. select a line → floating Ask bar → type the question
-  await page.selectText(SEL.src, "Why are there line numbers on every preview");
+  await page.selectText(SEL.src, "Why does every source line get its own row");
   await page.waitFor(`!!document.querySelector(${JSON.stringify(SEL.askbar)})`, { timeout: 5000, label: "ask bar" });
   await sleep(900);
   await page.click(`${SEL.askbar} button`, "Ask");
@@ -574,7 +574,7 @@ async function record(page) {
     ta.selectionStart = ta.selectionEnd = ta.value.length;
     return true;
   })()`);
-  await page.type("Where does the line number come from?", { delay: 32 });
+  await page.type("Why does each source line get its own row?", { delay: 32 });
   await sleep(900);
 
   // 4. send from the Ask popup → the composed prompt lands in the DSH composer
@@ -634,7 +634,7 @@ async function primeSession(page) {
 
 /** Select a passage in the preview, ask the question, send it through the composer. */
 async function askAndSend(page, question) {
-  await page.selectText(SEL.src, "Why are there line numbers on every preview");
+  await page.selectText(SEL.src, "Why does every source line get its own row");
   await page.waitFor(`!!document.querySelector(${JSON.stringify(SEL.askbar)})`, { timeout: 5000, label: "ask bar" });
   await page.click(`${SEL.askbar} button`, "Ask");
   await page.waitFor(`!!document.querySelector(".dsh-obs-askta")`, { label: "ask popup" });
@@ -671,11 +671,11 @@ async function chatTest(page) {
   await sleep(600);
   await page.scroll(SEL.dockBody, 360);
   await sleep(500);
-  const composed = await askAndSend(page, "Where does the line number come from?");
+  const composed = await askAndSend(page, "Why does each source line get its own row?");
   const gotReply = await page.waitFor(`(document.body.innerText || "").includes("Every source line")`, { timeout: 20000, label: "mock reply" }).catch(() => false);
   await sleep(1200);
   const transcript = await page.evaluate(`(() => (document.body.innerText || "").slice(-1200))()`);
-  const questionVisible = await page.evaluate(`(document.body.innerText || "").includes("Where does the line number come from?")`);
+  const questionVisible = await page.evaluate(`(document.body.innerText || "").includes("Why does each source line get its own row?")`);
   const consoleEvents = page.cdp.events
     .filter((e) => e.method === "Runtime.exceptionThrown" || (e.method === "Runtime.consoleAPICalled" && ["error", "warning"].includes(e.params?.type)))
     .slice(-8)

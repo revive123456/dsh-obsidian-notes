@@ -1,7 +1,7 @@
 # Markdown syntax
 
 A walk through the constructs the preview renders with real layout, not a
-monospace dump. Each source line keeps its line number on the left.
+monospace dump. Each source line gets its own row.
 
 ## Table alignment
 

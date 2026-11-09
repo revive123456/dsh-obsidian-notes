@@ -27,7 +27,7 @@
 
 ## 截图
 
-| 侧边栏笔记树 + 右侧预览 | Callout、行内语法、类型徽标 |
+| 侧边栏笔记树 + 右侧预览 | Callout、任务列表、类型徽标 |
 | --- | --- |
 | ![侧边栏笔记树与右侧预览](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-sidebar.png) | ![彩色 Obsidian callout，一行源码对应一行渲染](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-callouts.png) |
 
@@ -35,7 +35,7 @@
 | --- | --- |
 | ![带列对齐的表格与 TypeScript 代码块](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-markdown.png) | ![带行号的编辑器与保存按钮](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-editing.png) |
 
-| 由标题 + 列表生成的思维导图 | 全库关系图谱（笔记、双链、标签） |
+| 由标题 + 列表生成的思维导图 | 全库关系图谱——全库 / 局部 / 聚焦 |
 | --- | --- |
 | ![由笔记标题与列表生成的思维导图](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-mindmap.png) | ![全库关系图谱：圆圈是笔记、方块是标签、线是双链/标签关系](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-graph.png) |
 
