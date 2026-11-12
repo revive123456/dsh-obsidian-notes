@@ -2,7 +2,7 @@
 
 **DeepSeek Harness Web 的本地 Obsidian 风格笔记面板。** 指向一个 Markdown 文件夹，就能在对话旁边浏览、编辑、搜索、引用笔记 —— 不用装 Obsidian、不用导入，笔记也不会离开这台机器。
 
-![笔记面板演示：打开目录树、阅读 callout 笔记、选中一段文字提问 —— 组合好的 prompt 进入 DSH 输入框、发送后回答出现在对话里](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/hero.gif?v=2)
+![在预览里选中一段、点 Ask —— 提示词带着绝对路径、行号区间和原文落进 DSH 输入框](docs/assets/ask.gif)
 
 [![CI](https://github.com/revive123456/dsh-obsidian-notes/actions/workflows/ci.yml/badge.svg)](https://github.com/revive123456/dsh-obsidian-notes/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/revive123456/dsh-obsidian-notes/blob/main/LICENSE)
@@ -25,21 +25,6 @@
 
 全部在本机运行：插件只读写你选择的文件夹，客户端只走宿主自己的 loopback 路由。
 
-## 截图
-
-| 侧边栏笔记树 + 右侧预览 | Callout、任务列表、类型徽标 |
-| --- | --- |
-| ![侧边栏笔记树与右侧预览](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-sidebar.png) | ![彩色 Obsidian callout，一行源码对应一行渲染](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-callouts.png) |
-
-| 真表格与围栏代码 | 带行号的源码编辑视图 |
-| --- | --- |
-| ![带列对齐的表格与 TypeScript 代码块](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-markdown.png) | ![带行号的编辑器与保存按钮](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-editing.png) |
-
-| 由标题 + 列表生成的思维导图 | 全库关系图谱——全库 / 局部 / 聚焦 |
-| --- | --- |
-| ![由笔记标题与列表生成的思维导图](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-mindmap.png) | ![全库关系图谱：圆圈是笔记、方块是标签、线是双链/标签关系](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-graph.png) |
-
-![选中一段文字提问：路径、行号与原文会随问题一起注入](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-ask.png)
 
 ## 安装
 
@@ -166,7 +151,7 @@ dsh plugin --profile web add "$(pwd)"            # PowerShell 用 "$PWD"
 
 - **DSH：** 已对照 **0.2.1-rc.5** 验证（Web UI、桌面版外壳）。composer 集成面向 DSH 0.2 的 Lexical 输入框，并保留 0.1.x textarea 的降级路径。
 - **Node.js：** `^22.19 || >=24`（仅从源码运行 host 时需要）。
-- **系统：** 路径按平台分隔符处理，会话路径基于 `$DSH_HOME`。上面的截图在 macOS 上录制。
+- **系统：** 路径按平台分隔符处理，会话路径基于 `$DSH_HOME`。上面的动图在 macOS 上录制。
 - **不渲染（保持原文显示）**：数学公式、mermaid、脚注、标签、裸 HTML、笔记 transclusion、音频/PDF 嵌入、块引用 `^id`、callout 折叠/未知类型/嵌套，以及部分行内强调边界（`***粗斜体***`、嵌套强调、`_` 相邻文本）。
 
 ## 开发
@@ -190,7 +175,7 @@ npm run check:bundle   # bundle 清单一致性（patch 文件、module id、fil
 | `lib/client.js` | 构建产物（gitignore；由 `npm run build` 生成） |
 | `cordis.patch.yml` | `dsh plugin add` 安装后生效的 bundle 层 |
 | `tools/demo/` | 隔离 demo 环境 + 无头 Chrome 资产生成流程（见 [tools/demo/README.md](https://github.com/revive123456/dsh-obsidian-notes/blob/main/tools/demo/README.md)） |
-| `docs/assets/` | 上面用到的截图与 GIF |
+| `docs/assets/` | 上面的动图（以及插件目录用的静图） |
 
 插件不修改 DSH 安装本身：只贡献一个 bundle 层和 host/client 插件模块。
 

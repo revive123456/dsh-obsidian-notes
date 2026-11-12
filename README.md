@@ -2,7 +2,7 @@
 
 **A local Obsidian-style notes pane for the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) web UI.** Point it at a folder of Markdown files, then read, edit, search and cite them next to the conversation — without opening Obsidian, without importing anything, and without your notes leaving the machine.
 
-![The notes pane in action: open the vault tree, read a callout note, select a passage, ask about it — the composed prompt lands in the DSH composer, gets sent, and the answer comes back in the chat](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/hero.gif?v=2)
+![Select a passage in the preview and press Ask — the composed prompt carries the absolute path, the line range and the quoted text, and lands in the DSH composer](docs/assets/ask.gif)
 
 [![CI](https://github.com/revive123456/dsh-obsidian-notes/actions/workflows/ci.yml/badge.svg)](https://github.com/revive123456/dsh-obsidian-notes/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/revive123456/dsh-obsidian-notes/blob/main/LICENSE)
@@ -38,21 +38,6 @@ to the chat without copy-paste:
 Everything runs on your machine: the plugin reads and writes only the folder you
 choose, and the client talks to the host over its own loopback routes.
 
-## Screenshots
-
-| Notes tree + docked preview | Callouts, task lists, badges |
-| --- | --- |
-| ![Sidebar notes tree with the preview dock open](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-sidebar.png) | ![Coloured Obsidian callouts with one source line per rendered line](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-callouts.png) |
-
-| Real tables and fenced code | Edit with a line-numbered source view |
-| --- | --- |
-| ![Table with column alignment and a TypeScript code fence](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-markdown.png) | ![Editor with line numbers and Save button](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-editing.png) |
-
-| Mind map from headings + lists | Vault-wide graph — Vault / Local / Focus |
-| --- | --- |
-| ![Mind map view built from the note headings and list items](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-mindmap.png) | ![Relation graph of the whole vault: notes as circles, tags as squares, links as lines](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-graph.png) |
-
-![Select a passage and ask about it: path, line numbers and quote are sent with the question](https://raw.githubusercontent.com/revive123456/dsh-obsidian-notes/main/docs/assets/screenshot-ask.png)
 
 ## Install
 
@@ -270,7 +255,7 @@ Settings are persisted in `$DSH_HOME/dsh-obsidian-vault.json`
   0.1.x textarea path where possible.
 - **Node.js:** `^22.19 || >=24` (needed only when running the host from source).
 - **OS:** paths are handled with the platform separator; session paths use
-  `$DSH_HOME`. The screenshots above were captured on macOS.
+  `$DSH_HOME`. The GIF above was recorded on macOS.
 - **Not rendered** (kept as source text): math, mermaid, footnotes, tags, raw
   HTML, note transclusion, audio/PDF embeds, block refs (`^id`), callout
   folding/unknown types/nested callouts, and some inline emphasis edge cases
@@ -297,7 +282,7 @@ Repository layout:
 | `lib/client.js` | Build artifact (gitignored; produced by `npm run build`) |
 | `cordis.patch.yml` | The bundle layer inserted by `dsh plugin add` |
 | `tools/demo/` | Isolated demo environment + headless-Chrome asset pipeline (see [tools/demo/README.md](https://github.com/revive123456/dsh-obsidian-notes/blob/main/tools/demo/README.md)) |
-| `docs/assets/` | The screenshots and GIF used above |
+| `docs/assets/` | The GIF (and the screenshots used by the plugin listings) |
 
 The plugin never modifies the DSH installation: it only contributes a bundle
 layer plus host/client plugin modules.
