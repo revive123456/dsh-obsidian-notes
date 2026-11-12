@@ -606,6 +606,108 @@ async function record(page) {
   console.log(`recorded ${frames.length} frames in ${((Date.now() - started0) / 1000).toFixed(1)}s → ${FRAMES_DIR}`);
 }
 
+/**
+ * 短版「故事」GIF：关系图谱 → 打开笔记 → 选中一段 → Ask → 提示词落进 composer。
+ * 与 record 的区别：不发送、不等回复，十几秒讲完一次上下文交接。
+ */
+async function postDemo(page) {
+  await prepare(page);
+  await primeSession(page);
+  rmSync(FRAMES_DIR, { recursive: true, force: true });
+  mkdirSync(FRAMES_DIR, { recursive: true });
+  const frames = [];
+  const started0 = Date.now();
+  const mark = (label) => console.log(`  [${((Date.now() - started0) / 1000).toFixed(1)}s] ${label}`);
+  let running = true;
+  const targetFrameMs = Number(process.env.FRAME_MS || 90);
+
+  const loop = (async () => {
+    while (running) {
+      const started = Date.now();
+      try {
+        const data = await page.screenshotBase64({ format: "jpeg", quality: 82 });
+        const file = join(FRAMES_DIR, `frame-${String(frames.length + 1).padStart(5, "0")}.jpg`);
+        writeFileSync(file, Buffer.from(data, "base64"));
+        frames.push({ file, t: Date.now() - started0 });
+      } catch { /* capture can fail while the page is busy; skip that frame */ }
+      const spent = Date.now() - started;
+      if (spent < targetFrameMs) await sleep(targetFrameMs - spent);
+    }
+  })();
+
+  const clickByTitle = (scope, pattern) => page.evaluate(`(() => {
+    const re = ${pattern};
+    const el = [...document.querySelectorAll(${JSON.stringify(scope)})]
+      .find((b) => re.test(b.getAttribute("title") || "") || re.test(b.textContent || ""));
+    if (!el) return false;
+    el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+    return true;
+  })()`);
+
+  await sleep(500);
+  await openNotes(page);
+  await sleep(500);
+  mark("notes pane");
+
+  // 1) 左侧栏里的关系图谱入口：打开 → 缩小一点让全图入画
+  const opened = await page.evaluate(`(() => {
+    const row = [...document.querySelectorAll('.dsh-obs-root-row')].find((r) => (r.textContent || "").includes("Graph view") || (r.textContent || "").includes("关系图谱"));
+    if (!row) return false;
+    const btn = row.querySelector("button");
+    if (!btn) return false;
+    btn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+    return true;
+  })()`);
+  if (!opened) throw new Error("graph entry row not found");
+  await page.waitFor(`!!document.querySelector('.dsh-obs-graph-canvas')`, { timeout: 15000, label: "graph canvas" });
+  await sleep(2200);
+  const rect = await page.evaluate(`(() => { const r = document.querySelector('.dsh-obs-graph-canvas').getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })()`);
+  const cx = Math.round(rect.x + rect.w / 2);
+  const cy = Math.round(rect.y + rect.h / 2);
+  await page.cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", x: cx, y: cy, deltaX: 0, deltaY: 120 });
+  mark("graph open");
+  await sleep(1400);
+  await clickByTitle(".dsh-obs-graph-head button", "/Close the graph|关闭图谱/");
+  await sleep(500);
+
+  // 2) 打开一篇笔记（右侧 dock）
+  await expandFolder(page, "Notes", "Callout gallery");
+  await openNote(page, "Callout gallery");
+  await sleep(900);
+  await page.scroll(SEL.dockBody, 330);
+  await sleep(700);
+
+  // 3) 选中一段 → 浮动 Ask → 写问题
+  await page.selectText(SEL.src, "Why does every source line get its own row");
+  await page.waitFor(`!!document.querySelector(${JSON.stringify(SEL.askbar)})`, { timeout: 5000, label: "ask bar" });
+  await sleep(900);
+  await page.click(`${SEL.askbar} button`, "Ask");
+  await page.waitFor(`!!document.querySelector(".dsh-obs-askta")`, { label: "ask popup" });
+  await sleep(400);
+  await page.evaluate(`(() => {
+    const ta = document.querySelector(".dsh-obs-askta");
+    ta.focus();
+    ta.selectionStart = ta.selectionEnd = ta.value.length;
+    return true;
+  })()`);
+  await page.type("Why does each source line get its own row?", { delay: 30 });
+  await sleep(700);
+
+  // 4) 发送 → 提示词带着路径和行号落进 composer；收起 dock 让提示词完整可见
+  await page.click(".dsh-obs-asksend");
+  mark("prompt injected");
+  await sleep(600);
+  await page.click('.dsh-obs-dock-head button[title="Close"]');
+  mark("composer visible");
+  await sleep(2600);
+
+  running = false;
+  await loop;
+  const manifest = { width: VW, height: VH, capturedAt: new Date().toISOString(), frames };
+  writeFileSync(join(FRAMES_DIR, "manifest.json"), JSON.stringify(manifest));
+  console.log(`recorded ${frames.length} frames in ${((Date.now() - started0) / 1000).toFixed(1)}s → ${FRAMES_DIR}`);
+}
+
 /** Start a session (the app's default workspace) so the composer becomes usable. */
 async function startSession(page) {
   await page.click('button[aria-label="New session"]');
@@ -1229,6 +1331,7 @@ async function main() {
     }
     if (mode === "shots") await shots(page);
     else if (mode === "record") await record(page);
+    else if (mode === "postdemo") await postDemo(page);
     else if (mode === "probe") await probe(page);
     else if (mode === "dom") await domDump(page);
     else if (mode === "sessions") await sessionsDump(page);
